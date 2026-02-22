@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #10b981;
+  /* emerald-500 */
+  --color-primary-hover: #059669;
+  /* emerald-600 */
+  --color-secondary: #0ea5e9;
+  /* sky-500 */
+
+  --color-bg-base: #050505;
+  --color-bg-surface: #121212;
+  --color-bg-elevated: #1a1a1a;
+
+  --color-border-subtle: #262626;
+  /* neutral-800 */
+  --color-text-main: #f3f4f6;
+  /* gray-100 */
+  --color-text-muted: #9ca3af;
+  /* gray-400 */
+}
+
+@layer base {
+  body {
+    background-color: var(--color-bg-base);
+    color: var(--color-text-main);
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Outfit', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .glass-nav {
+    @apply bg-black/70 backdrop-blur-xl border-b border-white/5;
+  }
+
+  .card-glass {
+    @apply bg-white/[0.02] border border-white/5 backdrop-blur-sm rounded-2xl;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-black font-semibold px-6 py-2.5 rounded-xl transition-all hover:bg-primary-hover hover:-translate-y-0.5 hover:shadow-[0_0_20px_#10b9814d];
+  }
+
+  .btn-secondary {
+    @apply bg-white/5 text-white border border-white/10 font-semibold px-6 py-2.5 rounded-xl transition-all hover:bg-white/10 hover:-translate-y-0.5;
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400;
+  }
+}
+
+/* Custom Animations */
+@keyframes blob {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+.animate-blob {
+  animation: blob 8s infinite ease-in-out;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2000ms;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4000ms;
+}
