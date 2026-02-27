@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Filter, BookOpen, Download, Eye, Link2, Plus, X, UploadCloud, ThumbsUp } from 'lucide-react';
+import { Search, Filter, BookOpen, Download, Eye, Link2, Plus, X, UploadCloud, ThumbsUp, Loader2 } from 'lucide-react';
+import { useFirestore } from '../hooks/useFirestore';
+import { useAuth } from '../context/AuthContext';
 
 // Scraped JNTUH Data
 const PDF_MATERIALS = [
@@ -637,9 +639,8 @@ const YEARS = ['All Years', '1st Year', '2nd Year', '3rd Year', '4th Year'];
 const BRANCHES = ['All Branches', 'CSE', 'ECE', 'Civil', 'Mech', 'AIML', 'AI-DS'];
 
 const StudyMaterials = () => {
-  const [materials, setMaterials] = useState(() =>
-    PDF_MATERIALS.map(mat => ({ ...mat, upvotes: Math.floor(Math.random() * 80) + 12 }))
-  );
+  const { user } = useAuth();
+  const { docs: materials, loading, addDocument, updateDocument } = useFirestore('materials');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeYear, setActiveYear] = useState('All Years');
   const [activeBranch, setActiveBranch] = useState('All Branches');
@@ -656,40 +657,52 @@ const StudyMaterials = () => {
     url: ''
   });
 
-  const handleUploadSubmit = (e) => {
+  const handleUploadSubmit = async (e) => {
     e.preventDefault();
+    if (!user) {
+      alert("Please sign in to upload materials!");
+      return;
+    }
     if (!newUpload.title || !newUpload.url) return;
 
-    const createdMaterial = {
-      id: Date.now(),
-      title: newUpload.title,
-      year: newUpload.year,
-      branch: newUpload.branch,
-      size: "Community",
-      type: "PDF Document",
-      author: "You (Community)",
-      downloads: "0",
-      url: newUpload.url,
-      upvotes: 0,
-      hasUpvoted: false
-    };
+    try {
+      await addDocument({
+        title: newUpload.title,
+        year: newUpload.year,
+        branch: newUpload.branch,
+        size: "Community",
+        type: "PDF Document",
+        author: user.name,
+        uploaderId: user.uid,
+        downloads: 0,
+        url: newUpload.url,
+        upvotes: [] // Store UIDs of people who upvoted
+      });
 
-    setMaterials([createdMaterial, ...materials]);
-    setIsUploadModalOpen(false);
-    setNewUpload({ title: '', year: '1st Year', branch: 'CSE', url: '' });
+      setIsUploadModalOpen(false);
+      setNewUpload({ title: '', year: '1st Year', branch: 'CSE', url: '' });
+    } catch (err) {
+      console.error(err);
+      alert("Upload failed. Check console.");
+    }
   };
 
-  const toggleUpvote = (id) => {
-    setMaterials(materials.map(mat => {
-      if (mat.id === id) {
-        return {
-          ...mat,
-          upvotes: mat.hasUpvoted ? mat.upvotes - 1 : mat.upvotes + 1,
-          hasUpvoted: !mat.hasUpvoted
-        };
-      }
-      return mat;
-    }));
+  const toggleUpvote = async (id, currentUpvotes = []) => {
+    if (!user) {
+      alert("Please sign in to upvote!");
+      return;
+    }
+
+    const hasUpvoted = currentUpvotes.includes(user.uid);
+    const newUpvotes = hasUpvoted
+      ? currentUpvotes.filter(uid => uid !== user.uid)
+      : [...currentUpvotes, user.uid];
+
+    try {
+      await updateDocument(id, { upvotes: newUpvotes });
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const filteredPdfs = materials.filter(pdf => {
@@ -788,92 +801,101 @@ const StudyMaterials = () => {
 
         {/* Main Content */}
         <div className="flex-1 w-full flex flex-col min-h-[500px]">
-
-          {/* Search Bar */}
-          <div className="relative mb-6 group">
-            <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
-              <Search className="text-gray-500 group-focus-within:text-primary transition-colors" size={20} />
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-4">
+              <Loader2 size={48} className="text-primary animate-spin" />
+              <p className="text-gray-400 font-medium">Fetching academic excellence...</p>
             </div>
-            <input
-              type="text"
-              placeholder="Search by subject, code, or topic..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-neutral-900 border border-white/10 text-white rounded-2xl py-4 flex pl-14 pr-6 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all placeholder-gray-500 shadow-inner text-lg"
-            />
-          </div>
+          ) : (
+            <>
 
-          <div className="mb-6 flex justify-between items-center text-sm text-gray-400 px-2 border-b border-white/5 pb-4">
-            <span>Showing <strong className="text-white">{filteredPdfs.length}</strong> resources</span>
-          </div>
-
-          {/* List Output */}
-          <div className="flex flex-col gap-4">
-            {filteredPdfs.map(pdf => (
-              <div key={pdf.id} className="card-glass p-5 hover:bg-white/[0.04] transition-all duration-300 flex flex-col md:flex-row gap-6 md:items-center group">
-
-                <div className="flex-shrink-0 w-16 h-16 rounded-2xl bg-primary/10 flex flex-col items-center justify-center text-primary border border-primary/20 group-hover:bg-primary group-hover:text-black transition-colors">
-                  <span className="font-bold text-xs">PDF</span>
+              {/* Search Bar */}
+              <div className="relative mb-6 group">
+                <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
+                  <Search className="text-gray-500 group-focus-within:text-primary transition-colors" size={20} />
                 </div>
-
-                <div className="flex-grow">
-                  <h3 className="font-semibold text-white text-lg lg:text-xl mb-2 group-hover:text-primary transition-colors">{pdf.title}</h3>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="bg-white/5 text-gray-300 text-xs px-3 py-1 rounded-md border border-white/10">{pdf.year}</span>
-                    <span className="bg-primary/20 text-emerald-400 border border-primary/20 text-xs font-bold px-3 py-1 rounded-md">{pdf.branch}</span>
-                    <span className="bg-white/5 text-gray-300 text-xs px-3 py-1 rounded-md border border-white/10">{pdf.type}</span>
-                  </div>
-                </div>
-
-                <div className="flex-shrink-0 flex flex-col md:items-end gap-3 mt-4 md:mt-0">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => toggleUpvote(pdf.id)}
-                      className={`h-10 px-3 rounded-full border flex items-center gap-2 transition-all font-medium text-sm ${pdf.hasUpvoted
-                        ? 'bg-primary/20 text-emerald-400 border-primary/30'
-                        : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white'
-                        }`}
-                      title="Upvote Resource"
-                    >
-                      <ThumbsUp size={16} className={pdf.hasUpvoted ? "fill-emerald-400" : ""} />
-                      {pdf.upvotes}
-                    </button>
-                    <button
-                      onClick={() => setActivePdfViewer(pdf)}
-                      className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:bg-primary hover:text-black hover:scale-110 transition-all"
-                      title="Open Resource"
-                    >
-                      <Eye size={18} />
-                    </button>
-                    <a
-                      href={pdf.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:bg-primary hover:text-black hover:scale-110 transition-all"
-                      title="Download"
-                    >
-                      <Download size={18} />
-                    </a>
-                  </div>
-                  <span className="text-xs text-gray-500 font-medium">Source: {pdf.author} • {pdf.downloads} views</span>
-                </div>
-
+                <input
+                  type="text"
+                  placeholder="Search by subject, code, or topic..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-neutral-900 border border-white/10 text-white rounded-2xl py-4 flex pl-14 pr-6 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all placeholder-gray-500 shadow-inner text-lg"
+                />
               </div>
-            ))}
-          </div>
 
-          {filteredPdfs.length === 0 && (
-            <div className="card-glass p-16 text-center rounded-2xl border-dashed border-white/10 flex-grow flex flex-col items-center justify-center">
-              <Search className="text-gray-600 mb-6" size={56} />
-              <h3 className="text-2xl text-white font-semibold mb-3">No resources found</h3>
-              <p className="text-gray-400 max-w-md mx-auto mb-8">We couldn't find any JNTUH study materials matching your current filters.</p>
-              <button
-                className="btn-primary"
-                onClick={() => { setSearchTerm(''); setActiveYear('All Years'); setActiveBranch('All Branches'); }}
-              >
-                Clear all filters
-              </button>
-            </div>
+              <div className="mb-6 flex justify-between items-center text-sm text-gray-400 px-2 border-b border-white/5 pb-4">
+                <span>Showing <strong className="text-white">{filteredPdfs.length}</strong> resources</span>
+              </div>
+
+              {/* List Output */}
+              <div className="flex flex-col gap-4">
+                {filteredPdfs.map(pdf => (
+                  <div key={pdf.id} className="card-glass p-5 hover:bg-white/[0.04] transition-all duration-300 flex flex-col md:flex-row gap-6 md:items-center group">
+
+                    <div className="flex-shrink-0 w-16 h-16 rounded-2xl bg-primary/10 flex flex-col items-center justify-center text-primary border border-primary/20 group-hover:bg-primary group-hover:text-black transition-colors">
+                      <span className="font-bold text-xs">PDF</span>
+                    </div>
+
+                    <div className="flex-grow">
+                      <h3 className="font-semibold text-white text-lg lg:text-xl mb-2 group-hover:text-primary transition-colors">{pdf.title}</h3>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="bg-white/5 text-gray-300 text-xs px-3 py-1 rounded-md border border-white/10">{pdf.year}</span>
+                        <span className="bg-primary/20 text-emerald-400 border border-primary/20 text-xs font-bold px-3 py-1 rounded-md">{pdf.branch}</span>
+                        <span className="bg-white/5 text-gray-300 text-xs px-3 py-1 rounded-md border border-white/10">{pdf.type}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex-shrink-0 flex flex-col md:items-end gap-3 mt-4 md:mt-0">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => toggleUpvote(pdf.id, pdf.upvotes)}
+                          className={`h-10 px-3 rounded-full border flex items-center gap-2 transition-all font-medium text-sm ${pdf.upvotes?.includes(user?.uid)
+                            ? 'bg-primary/20 text-emerald-400 border-primary/30'
+                            : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white'
+                            }`}
+                          title="Upvote Resource"
+                        >
+                          <ThumbsUp size={16} className={pdf.upvotes?.includes(user?.uid) ? "fill-emerald-400" : ""} />
+                          {pdf.upvotes?.length || 0}
+                        </button>
+                        <button
+                          onClick={() => setActivePdfViewer(pdf)}
+                          className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:bg-primary hover:text-black hover:scale-110 transition-all"
+                          title="Open Resource"
+                        >
+                          <Eye size={18} />
+                        </button>
+                        <a
+                          href={pdf.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:bg-primary hover:text-black hover:scale-110 transition-all"
+                          title="Download"
+                        >
+                          <Download size={18} />
+                        </a>
+                      </div>
+                      <span className="text-xs text-gray-500 font-medium">Source: {pdf.author} • {pdf.downloads} views</span>
+                    </div>
+
+                  </div>
+                ))}
+              </div>
+
+              {filteredPdfs.length === 0 && (
+                <div className="card-glass p-16 text-center rounded-2xl border-dashed border-white/10 flex-grow flex flex-col items-center justify-center">
+                  <Search className="text-gray-600 mb-6" size={56} />
+                  <h3 className="text-2xl text-white font-semibold mb-3">No resources found</h3>
+                  <p className="text-gray-400 max-w-md mx-auto mb-8">We couldn't find any JNTUH study materials matching your current filters.</p>
+                  <button
+                    className="btn-primary"
+                    onClick={() => { setSearchTerm(''); setActiveYear('All Years'); setActiveBranch('All Branches'); }}
+                  >
+                    Clear all filters
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
 

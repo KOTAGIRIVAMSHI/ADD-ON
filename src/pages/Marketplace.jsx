@@ -1,21 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Filter, ShoppingBag, X, Plus, Heart, MessageSquare, Send } from 'lucide-react';
-
-// Dummy data for products
-const INITIAL_ITEMS = [
-    { id: 1, title: 'Calculus Early Transcendentals', category: 'Books', price: 450, condition: 'Good', image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400&h=300', seller: 'Rahul K.' },
-    { id: 2, title: 'Casio fx-991EX Calculator', category: 'Tech & Gear', price: 800, condition: 'Like New', image: 'https://images.unsplash.com/photo-1587145820266-a5951ee6f620?auto=format&fit=crop&q=80&w=400&h=300', seller: 'Priya S.' },
-    { id: 3, title: 'Engineering Drawing Set', category: 'Tech & Gear', price: 300, condition: 'Fair', image: 'https://images.unsplash.com/photo-1616628188506-4bf98d4dbb1f?auto=format&fit=crop&q=80&w=400&h=300', seller: 'Amit M.' },
-    { id: 4, title: 'Let Us C by Yashavant Kanetkar', category: 'Books', price: 200, condition: 'Good', image: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=400&h=300', seller: 'Sneha R.' },
-    { id: 5, title: 'Arduino Uno Rev3', category: 'Tech & Gear', price: 950, condition: 'New', image: 'https://images.unsplash.com/photo-1558904541-efa843a96f0f?auto=format&fit=crop&q=80&w=400&h=300', seller: 'Vikram B.' },
-    { id: 6, title: 'Data Structures and Algorithms', category: 'Books', price: 550, condition: 'Like New', image: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=400&h=300', seller: 'Neha P.' },
-];
+import { Search, Filter, ShoppingBag, X, Plus, Heart, MessageSquare, Send, Loader2 } from 'lucide-react';
+import { useFirestore } from '../hooks/useFirestore';
+import { useAuth } from '../context/AuthContext';
 
 const CATEGORIES = ['All', 'Books', 'Tech & Gear'];
 
 const Marketplace = () => {
-    const [items, setItems] = useState(INITIAL_ITEMS);
+    const { user } = useAuth();
+    const { docs: items, loading, addDocument } = useFirestore('listings');
     const [searchTerm, setSearchTerm] = useState('');
     const [activeCategory, setActiveCategory] = useState('All');
 
@@ -59,25 +52,34 @@ const Marketplace = () => {
         });
     };
 
-    const handleCreateSubmit = (e) => {
+    const handleCreateSubmit = async (e) => {
         e.preventDefault();
+
+        if (!user) {
+            alert("Please sign in to post a listing!");
+            return;
+        }
 
         // Basic validation
         if (!newItem.title || !newItem.price) return;
 
-        const createdItem = {
-            id: Date.now(),
-            title: newItem.title,
-            category: newItem.category,
-            price: Number(newItem.price),
-            condition: newItem.condition,
-            seller: 'You', // Simulated user
-            image: newItem.image || 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=400&h=300' // fallback image
-        };
+        try {
+            await addDocument({
+                title: newItem.title,
+                category: newItem.category,
+                price: Number(newItem.price),
+                condition: newItem.condition,
+                seller: user.name,
+                sellerId: user.uid,
+                image: newItem.image || 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=400&h=300'
+            });
 
-        setItems([createdItem, ...items]);
-        setIsCreateModalOpen(false);
-        setNewItem({ title: '', price: '', category: 'Books', condition: 'Good', image: '' }); // Reset form
+            setIsCreateModalOpen(false);
+            setNewItem({ title: '', price: '', category: 'Books', condition: 'Good', image: '' });
+        } catch (err) {
+            console.error(err);
+            alert("Failed to post listing. Check console for errors.");
+        }
     };
 
     const openChat = (item) => {
@@ -218,52 +220,59 @@ const Marketplace = () => {
                     </div>
 
                     {/* Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredItems.map(item => {
-                            const isSaved = savedItems.has(item.id);
-                            return (
-                                <div key={item.id} className="card-glass overflow-hidden flex flex-col group hover:-translate-y-2 hover:border-primary/30 transition-all duration-300">
-                                    <div className="relative h-48 w-full overflow-hidden">
-                                        <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors z-10"></div>
-                                        <img src={item.image} alt={item.title} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700" loading="lazy" />
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-24 gap-4">
+                            <Loader2 size={48} className="text-primary animate-spin" />
+                            <p className="text-gray-400 font-medium">Loading incredible deals...</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {filteredItems.map(item => {
+                                const isSaved = savedItems.has(item.id);
+                                return (
+                                    <div key={item.id} className="card-glass overflow-hidden flex flex-col group hover:-translate-y-2 hover:border-primary/30 transition-all duration-300">
+                                        <div className="relative h-48 w-full overflow-hidden">
+                                            <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors z-10"></div>
+                                            <img src={item.image} alt={item.title} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700" loading="lazy" />
 
-                                        {/* Badges */}
-                                        <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-2">
-                                            <span className="bg-black/70 backdrop-blur-md text-white text-xs font-semibold px-3 py-1 rounded-full border border-white/10 block w-max">
-                                                {item.condition}
-                                            </span>
-                                            <span className="bg-primary/90 text-black text-xs font-bold px-3 py-1 rounded-full block w-max shadow-lg">
-                                                {item.category}
-                                            </span>
-                                        </div>
+                                            {/* Badges */}
+                                            <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-2">
+                                                <span className="bg-black/70 backdrop-blur-md text-white text-xs font-semibold px-3 py-1 rounded-full border border-white/10 block w-max">
+                                                    {item.condition}
+                                                </span>
+                                                <span className="bg-primary/90 text-black text-xs font-bold px-3 py-1 rounded-full block w-max shadow-lg">
+                                                    {item.category}
+                                                </span>
+                                            </div>
 
-                                        {/* Save Button */}
-                                        <button
-                                            onClick={() => toggleSaveItem(item.id)}
-                                            className="absolute top-3 left-3 z-20 w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-black/80 transition-colors"
-                                        >
-                                            <Heart size={16} className={`${isSaved ? 'fill-rose-500 text-rose-500' : 'text-white'} transition-colors duration-300`} />
-                                        </button>
-                                    </div>
-
-                                    <div className="p-5 flex flex-col flex-grow bg-neutral-950/50">
-                                        <h3 className="font-semibold text-white text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors">{item.title}</h3>
-                                        <p className="text-gray-500 text-sm mb-4">Seller: <span className="text-gray-300">{item.seller}</span></p>
-
-                                        <div className="mt-auto flex items-end justify-between">
-                                            <span className="text-2xl font-bold font-heading text-white">₹{item.price}</span>
+                                            {/* Save Button */}
                                             <button
-                                                onClick={() => openChat(item)}
-                                                className="text-sm font-semibold flex items-center gap-1 text-primary hover:text-white bg-primary/10 hover:bg-primary px-3 py-2 rounded-lg transition-colors border border-primary/20 hover:border-transparent"
+                                                onClick={() => toggleSaveItem(item.id)}
+                                                className="absolute top-3 left-3 z-20 w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-black/80 transition-colors"
                                             >
-                                                <MessageSquare size={16} /> Contact
+                                                <Heart size={16} className={`${isSaved ? 'fill-rose-500 text-rose-500' : 'text-white'} transition-colors duration-300`} />
                                             </button>
                                         </div>
+
+                                        <div className="p-5 flex flex-col flex-grow bg-neutral-950/50">
+                                            <h3 className="font-semibold text-white text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors">{item.title}</h3>
+                                            <p className="text-gray-500 text-sm mb-4">Seller: <span className="text-gray-300">{item.seller}</span></p>
+
+                                            <div className="mt-auto flex items-end justify-between">
+                                                <span className="text-2xl font-bold font-heading text-white">₹{item.price}</span>
+                                                <button
+                                                    onClick={() => openChat(item)}
+                                                    className="text-sm font-semibold flex items-center gap-1 text-primary hover:text-white bg-primary/10 hover:bg-primary px-3 py-2 rounded-lg transition-colors border border-primary/20 hover:border-transparent"
+                                                >
+                                                    <MessageSquare size={16} /> Contact
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
 
                     {filteredItems.length === 0 && (
                         <div className="card-glass p-12 text-center rounded-2xl border-dashed border-white/20">
