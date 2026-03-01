@@ -34,12 +34,12 @@ const getExpiryInfo = (expiresAt) => {
 
 // ─── Avatar Initials ──────────────────────────────────────────────────────────
 
-const Avatar = ({ name, size = 10, className = '' }) => {
+const Avatar = ({ name, size = 'h-10 w-10', className = '' }) => {
     const initials = (name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
     const colors = ['from-violet-500 to-indigo-500', 'from-emerald-500 to-teal-500', 'from-rose-500 to-pink-500', 'from-amber-500 to-orange-500', 'from-cyan-500 to-blue-500'];
     const colorIdx = (name || '').charCodeAt(0) % colors.length;
     return (
-        <div className={`w-${size} h-${size} rounded-full bg-gradient-to-br ${colors[colorIdx]} flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-lg ${className}`}>
+        <div className={`${size} rounded-full bg-gradient-to-br ${colors[colorIdx]} flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-lg ${className}`}>
             {initials}
         </div>
     );
@@ -222,16 +222,16 @@ const Messages = () => {
     const expiryInfo = selectedChat?.expiresAt ? getExpiryInfo(selectedChat.expiresAt) : null;
 
     return (
-        <div className="flex-grow flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 80px)' }}>
-            <div className="flex flex-1 h-full max-w-7xl mx-auto w-full p-4 gap-4 min-h-0">
+        <div className="flex-grow flex flex-col" style={{ height: 'calc(100vh - 80px)' }}>
+            <div className="flex flex-1 h-full max-w-7xl mx-auto w-full p-2 md:p-4 gap-2 md:gap-4 min-h-0">
 
                 {/* ── Sidebar ────────────────────────────────────────────── */}
-                <div className="w-full md:w-80 lg:w-96 flex-shrink-0 flex flex-col min-h-0">
+                <div className={`w-full md:w-80 lg:w-96 flex-shrink-0 flex flex-col min-h-0 ${selectedChat ? 'hidden md:flex' : 'flex'}`}>
                     <div className="card-glass flex flex-col h-full min-h-0 overflow-hidden">
 
                         {/* Header */}
-                        <div className="p-4 border-b border-white/10 flex-shrink-0">
-                            <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 md:p-4 border-b border-white/10 flex-shrink-0">
+                            <div className="flex items-center justify-between mb-3 md:mb-4">
                                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                                     <MessageCircle size={20} className="text-primary" />
                                     Messages
@@ -262,12 +262,12 @@ const Messages = () => {
                         {/* Chat List */}
                         <div className="flex-1 overflow-y-auto min-h-0">
                             {loadingChats ? (
-                                <div className="flex flex-col items-center justify-center py-16 gap-3">
-                                    <Loader2 size={28} className="text-primary animate-spin" />
+                                <div className="flex flex-col items-center justify-center py-10 md:py-16 gap-3">
+                                    <Loader2 size={24} md:size={28} className="text-primary animate-spin" />
                                     <p className="text-gray-500 text-xs uppercase font-bold tracking-widest">Loading</p>
                                 </div>
                             ) : filteredChats.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                                <div className="flex flex-col items-center justify-center py-10 md:py-16 px-4 text-center">
                                     <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4 border border-white/10">
                                         <MessageSquare size={24} className="text-gray-600" />
                                     </div>
@@ -289,12 +289,12 @@ const Messages = () => {
                                             <button
                                                 key={chat.id}
                                                 onClick={() => setSelectedChat(chat)}
-                                                className={`flex items-start gap-3 p-4 border-b border-white/5 transition-all text-left group relative ${isActive
+                                                className={`flex items-start gap-2 md:gap-3 p-3 md:p-4 border-b border-white/5 transition-all text-left group relative ${isActive
                                                     ? 'bg-primary/15 border-l-2 border-l-primary'
                                                     : 'hover:bg-white/5 border-l-2 border-l-transparent'
                                                     }`}
                                             >
-                                                <Avatar name={otherName} size={11} />
+                                                <Avatar name={otherName} size="h-9 w-9 md:h-11 md:w-11" />
 
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex justify-between items-start mb-0.5">
@@ -338,14 +338,20 @@ const Messages = () => {
                 </div>
 
                 {/* ── Chat Window ────────────────────────────────────────── */}
-                <div className="flex-1 flex flex-col min-h-0 min-w-0">
+                <div className={`flex-1 flex flex-col min-h-0 min-w-0 ${!selectedChat ? 'hidden md:flex' : 'flex'}`}>
                     {selectedChat ? (
                         <div className="card-glass flex flex-col h-full min-h-0 overflow-hidden">
 
                             {/* Chat Header */}
-                            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.03] flex-shrink-0">
+                            <div className="p-3 md:p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.03] flex-shrink-0">
                                 <div className="flex items-center gap-3">
-                                    <Avatar name={selectedChat.buyerId === user.uid ? selectedChat.sellerName : selectedChat.buyerName} size={10} />
+                                    <button 
+                                        onClick={() => setSelectedChat(null)}
+                                        className="md:hidden p-1 -ml-1 text-gray-400 hover:text-white"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                                    </button>
+                                    <Avatar name={selectedChat.buyerId === user.uid ? selectedChat.sellerName : selectedChat.buyerName} size="h-9 w-9 md:h-10 md:w-10" />
                                     <div>
                                         <h3 className="text-sm font-bold text-white">
                                             {selectedChat.buyerId === user.uid ? selectedChat.sellerName : selectedChat.buyerName}
@@ -380,7 +386,7 @@ const Messages = () => {
                             )}
 
                             {/* Messages Area */}
-                            <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-2 min-h-0">
+                            <div className="flex-1 overflow-y-auto p-3 md:p-5 flex flex-col gap-1 md:gap-2 min-h-0">
                                 {loadingMessages ? (
                                     <div className="flex-1 flex items-center justify-center">
                                         <Loader2 size={28} className="text-primary animate-spin" />
@@ -430,7 +436,7 @@ const Messages = () => {
                             </div>
 
                             {/* Message Input */}
-                            <div className="p-4 border-t border-white/10 bg-white/[0.02] flex-shrink-0">
+                            <div className="p-2 md:p-4 border-t border-white/10 bg-white/[0.02] flex-shrink-0">
                                 {expiryInfo?.expired ? (
                                     <div className="text-center text-gray-600 text-sm py-2">This chat has expired.</div>
                                 ) : (
@@ -441,25 +447,25 @@ const Messages = () => {
                                             value={newMessage}
                                             onChange={e => setNewMessage(e.target.value)}
                                             onKeyDown={handleKeyDown}
-                                            placeholder="Type a message... (Enter to send)"
-                                            className="flex-1 bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-primary/50 transition-all shadow-inner resize-none leading-relaxed placeholder-gray-600"
-                                            style={{ maxHeight: 120, overflowY: 'auto' }}
+                                            placeholder="Type a message..."
+                                            className="flex-1 bg-black/40 border border-white/10 rounded-xl py-2 md:py-3 px-3 md:px-4 text-sm text-white focus:outline-none focus:border-primary/50 transition-all shadow-inner resize-none leading-relaxed placeholder-gray-600"
+                                            style={{ maxHeight: 100, overflowY: 'auto' }}
                                         />
                                         <button
                                             type="submit"
                                             disabled={!newMessage.trim() || sending}
-                                            className="p-3 rounded-xl bg-primary text-black font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-hover transition-all shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 flex-shrink-0"
+                                            className="p-2 md:p-3 rounded-xl bg-primary text-black font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-hover transition-all shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 flex-shrink-0"
                                         >
-                                            {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                                            {sending ? <Loader2 size={16} md:size={18} className="animate-spin" /> : <Send size={16} md:size={18} />}
                                         </button>
                                     </form>
                                 )}
                             </div>
                         </div>
                     ) : (
-                        <div className="card-glass flex-1 flex flex-col items-center justify-center text-center p-12 h-full">
-                            <div className="w-24 h-24 bg-primary/5 rounded-full flex items-center justify-center mb-6 border border-primary/10">
-                                <MessageCircle size={44} className="text-primary/30" />
+                        <div className="card-glass flex-1 flex flex-col items-center justify-center text-center p-6 md:p-12 h-full">
+                            <div className="w-16 h-16 md:w-24 md:h-24 bg-primary/5 rounded-full flex items-center justify-center mb-4 md:mb-6 border border-primary/10">
+                                <MessageCircle size={32} md:size={44} className="text-primary/30" />
                             </div>
                             <h3 className="text-2xl font-bold text-white mb-3">Your Conversations</h3>
                             <p className="text-gray-500 max-w-xs text-sm leading-relaxed">
