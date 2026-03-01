@@ -77,7 +77,16 @@ const Messages = () => {
                 seen.add(c.id);
                 // Filter expired
                 if (c.expiresAt) {
-                    const expiry = c.expiresAt instanceof Date ? c.expiresAt : c.expiresAt.toDate?.() ?? new Date(c.expiresAt);
+                    let expiry;
+                    if (c.expiresAt instanceof Date) {
+                        expiry = c.expiresAt;
+                    } else if (c.expiresAt && typeof c.expiresAt.toDate === 'function') {
+                        expiry = c.expiresAt.toDate();
+                    } else if (typeof c.expiresAt === 'string') {
+                        expiry = new Date(c.expiresAt);
+                    } else {
+                        return true; // Can't determine expiry, keep it
+                    }
                     if (expiry <= now) return false;
                 }
                 return true;
@@ -128,16 +137,17 @@ const Messages = () => {
             const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
             setMessages(msgs);
             setLoadingMessages(false);
-            setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 80);
         });
 
         return () => unsubscribe();
     }, [selectedChat?.id]);
 
-    // ── Auto-scroll when messages change ─────────────────────────────────────
+    // ── Auto-scroll when messages change (only within messages container) ─────────────────────────────────────
     useEffect(() => {
-        scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages.length]);
+        if (messages.length > 0 && scrollRef.current) {
+            scrollRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+    }, [messages]);
 
     // ── Send Message ──────────────────────────────────────────────────────────
     const handleSendMessage = async (e) => {
@@ -281,7 +291,7 @@ const Messages = () => {
                             ) : (
                                 <div className="flex flex-col">
                                     {filteredChats.map(chat => {
-                                        const otherName = chat.buyerId === user.uid ? chat.sellerName : chat.buyerName;
+                                        const otherName = chat.buyerId === user.uid ? (chat.sellerName || 'Seller') : (chat.buyerName || 'Buyer');
                                         const isActive = selectedChat?.id === chat.id;
                                         const exp = chat.expiresAt ? getExpiryInfo(chat.expiresAt) : null;
 

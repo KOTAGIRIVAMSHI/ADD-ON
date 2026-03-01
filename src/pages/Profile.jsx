@@ -1,34 +1,70 @@
-import React, { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ShoppingBag, BookOpen, Heart, Package, ChevronRight, Edit3, Trash2, ExternalLink, Loader2 } from 'lucide-react';
-import { useFirestore } from '../hooks/useFirestore';
-import { where } from 'firebase/firestore';
+import { ShoppingBag, BookOpen, Heart, Package, ChevronRight, Edit3, Trash2, ExternalLink, Loader2, Linkedin, Github, Twitter, Globe, RefreshCw } from 'lucide-react';
+import { dbHelpers } from '../utils/dbHelpers';
+import EditProfileModal from '../components/EditProfileModal';
 
 const Profile = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('listings'); // listings, saved, uploads
+    const location = useLocation();
+    const [activeTab, setActiveTab] = useState('listings');
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [myListings, setMyListings] = useState([]);
+    const [myUploads, setMyUploads] = useState([]);
+    const [myWishlist, setMyWishlist] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-    // Fetch User Listings
-    const { docs: myListings, loading: listingsLoading, deleteDocument: deleteListing } = useFirestore(
-        'listings',
-        user ? [where('sellerId', '==', user.uid)] : []
-    );
+    const fetchUserData = useCallback(async () => {
+        if (!user) return;
+        console.log('Fetching user data for UID:', user.uid);
+        setLoading(true);
+        try {
+            const listings = await dbHelpers.getListingsByUser(user.uid);
+            console.log('User listings:', listings);
+            
+            const uploads = await dbHelpers.getMaterials();
+            console.log('All materials:', uploads);
+            
+            const saved = await dbHelpers.getUserWishlist(user.uid);
+            console.log('User wishlist:', saved);
+            
+            setMyListings(listings);
+            setMyUploads(uploads.filter(m => m.uploaderId === user.uid));
+            setMyWishlist(saved);
+        } catch (err) {
+            console.error('Error fetching user data:', err);
+        } finally {
+            setLoading(false);
+        }
+    }, [user?.uid]);
 
-    // Fetch User Uploads
-    const { docs: myUploads, loading: uploadsLoading } = useFirestore(
-        'materials',
-        user ? [where('uploaderId', '==', user.uid)] : []
-    );
+    useEffect(() => {
+        fetchUserData();
+    }, [fetchUserData, location.pathname]);
 
-    // Fetch User Wishlist
-    const { docs: myWishlist, loading: wishlistLoading, deleteDocument: removeFromWishlist } = useFirestore(
-        'wishlist',
-        user ? [where('userId', '==', user.uid)] : []
-    );
+    const handleDeleteListing = async (listingId) => {
+        if (!confirm('Are you sure you want to delete this listing?')) return;
+        try {
+            await dbHelpers.deleteListing(listingId);
+            setMyListings(prev => prev.filter(l => l.id !== listingId));
+        } catch (err) {
+            console.error('Error deleting listing:', err);
+            alert('Failed to delete listing');
+        }
+    };
 
-    if (!user) return <Navigate to="/" />;
+    const handleRemoveFromWishlist = async (listingId) => {
+        try {
+            await dbHelpers.removeFromWishlist(user.uid, listingId);
+            setMyWishlist(prev => prev.filter(w => w.listingId !== listingId));
+        } catch (err) {
+            console.error('Error removing from wishlist:', err);
+        }
+    };
+
+    if (!user) return <Navigate to="/" replace />;
 
     return (
         <div className="w-full flex-grow flex flex-col py-12 px-6 fade-in container mx-auto max-w-6xl">
@@ -46,7 +82,10 @@ const Profile = () => {
                             alt={user.name}
                             className="w-32 h-32 rounded-3xl border-2 border-primary/30 shadow-2xl"
                         />
-                        <button className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-primary text-black flex items-center justify-center shadow-lg border-4 border-neutral-900 hover:scale-110 transition-transform">
+                        <button 
+                            onClick={() => setIsEditModalOpen(true)}
+                            className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-primary text-black flex items-center justify-center shadow-lg border-4 border-neutral-900 hover:scale-110 transition-transform"
+                        >
                             <Edit3 size={16} />
                         </button>
                     </div>
@@ -61,6 +100,31 @@ const Profile = () => {
                             <span className="px-3 py-1 rounded-full bg-white/5 text-gray-400 border border-white/10 text-xs font-bold uppercase tracking-wider">
                                 {user.year}
                             </span>
+                        </div>
+                        {user.bio && (
+                            <p className="text-gray-400 text-sm mb-4 max-w-md">{user.bio}</p>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                            {user.linkedin && (
+                                <a href={user.linkedin} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:bg-[#0077b5] hover:text-white transition-all">
+                                    <Linkedin size={14} />
+                                </a>
+                            )}
+                            {user.github && (
+                                <a href={user.github} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:bg-white hover:text-black transition-all">
+                                    <Github size={14} />
+                                </a>
+                            )}
+                            {user.twitter && (
+                                <a href={user.twitter} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:bg-black hover:text-white transition-all">
+                                    <Twitter size={14} />
+                                </a>
+                            )}
+                            {user.website && (
+                                <a href={user.website} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-primary transition-all">
+                                    <Globe size={14} />
+                                </a>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto md:mx-0">
@@ -79,8 +143,18 @@ const Profile = () => {
                         </div>
                     </div>
 
-                    <button className="btn-secondary px-8 py-3">
+                    <button 
+                        onClick={() => setIsEditModalOpen(true)}
+                        className="btn-secondary px-8 py-3"
+                    >
                         Edit Profile
+                    </button>
+                    <button 
+                        onClick={fetchUserData}
+                        className="btn-secondary px-4 py-3"
+                        title="Refresh"
+                    >
+                        <RefreshCw size={18} />
                     </button>
                 </div>
             </div>
@@ -126,11 +200,11 @@ const Profile = () => {
 
                 {/* Main Content Area */}
                 <main className="flex-1">
-                    {activeTab === 'listings' && (
+                    {loading ? (
+                        <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-primary" size={32} /></div>
+                    ) : activeTab === 'listings' && (
                         <div className="grid grid-cols-1 gap-4">
-                            {listingsLoading ? (
-                                <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-primary" size={32} /></div>
-                            ) : myListings.length > 0 ? myListings.map(item => (
+                            {myListings.length > 0 ? myListings.map(item => (
                                 <div key={item.id} className="card-glass p-4 flex items-center gap-6 group hover:border-primary/20 transition-all">
                                     <img src={item.image} alt={item.title} className="w-24 h-24 rounded-xl object-cover border border-white/5" />
                                     <div className="flex-1">
@@ -149,7 +223,7 @@ const Profile = () => {
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         <button
-                                            onClick={() => deleteListing(item.id)}
+                                            onClick={() => handleDeleteListing(item.id)}
                                             className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:bg-rose-500 hover:text-white transition-all"
                                             title="Delete Listing"
                                         >
@@ -174,9 +248,7 @@ const Profile = () => {
 
                     {activeTab === 'saved' && (
                         <div className="grid grid-cols-1 gap-4">
-                            {wishlistLoading ? (
-                                <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-primary" size={32} /></div>
-                            ) : myWishlist.length > 0 ? myWishlist.map(item => (
+                            {myWishlist.length > 0 ? myWishlist.map(item => (
                                 <div key={item.id} className="card-glass p-4 flex items-center gap-6 group hover:border-rose-500/20 transition-all">
                                     <img src={item.image} alt={item.title} className="w-24 h-24 rounded-xl object-cover border border-white/5" />
                                     <div className="flex-1">
@@ -186,7 +258,7 @@ const Profile = () => {
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         <button
-                                            onClick={() => removeFromWishlist(item.id)}
+                                            onClick={() => handleRemoveFromWishlist(item.listingId)}
                                             className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-rose-500 hover:bg-rose-500 hover:text-white transition-all"
                                             title="Remove from Saved"
                                         >
@@ -205,9 +277,7 @@ const Profile = () => {
 
                     {activeTab === 'uploads' && (
                         <div className="grid grid-cols-1 gap-4">
-                            {uploadsLoading ? (
-                                <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-primary" size={32} /></div>
-                            ) : myUploads.length > 0 ? myUploads.map(item => (
+                            {myUploads.length > 0 ? myUploads.map(item => (
                                 <div key={item.id} className="card-glass p-6 group hover:border-primary/20 transition-all flex justify-between items-center">
                                     <div>
                                         <h3 className="font-bold text-white text-lg mb-2 group-hover:text-primary transition-colors">{item.title}</h3>
@@ -240,6 +310,11 @@ const Profile = () => {
                     )}
                 </main>
             </div>
+
+            <EditProfileModal 
+                isOpen={isEditModalOpen} 
+                onClose={() => setIsEditModalOpen(false)} 
+            />
         </div>
     );
 };

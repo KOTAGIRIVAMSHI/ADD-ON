@@ -1,14 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, MapPin, Calendar, Clock, Users, ArrowRight, Car, UserCircle2, MessageCircle, Plus, X, Loader2 } from 'lucide-react';
-import { useFirestore } from '../hooks/useFirestore';
+import { Search, MapPin, Calendar, Clock, Users, ArrowRight, Car, UserCircle2, MessageCircle, Plus, X, Loader2, Ticket, UserMinus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { dbHelpers } from '../utils/dbHelpers';
 
 const RideSharing = () => {
     const { user } = useAuth();
-    const { docs: rides, loading, addDocument } = useFirestore('rides');
+    const navigate = useNavigate();
+    const [rides, setRides] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('all'); // all, offering, requesting
     const [searchTerm, setSearchTerm] = useState('');
+    const [booking, setBooking] = useState(null);
+
+    // Load rides
+    useEffect(() => {
+        const loadRides = async () => {
+            try {
+                const data = await dbHelpers.getAllRides();
+                setRides(data);
+            } catch (err) {
+                console.error('Error loading rides:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadRides();
+    }, []);
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -39,22 +58,27 @@ const RideSharing = () => {
         }
 
         try {
-            await addDocument({
+            await dbHelpers.createRide({
                 type: modalType,
-                user: user.name,
-                userId: user.uid,
-                avatar: user.avatar || `https://i.pravatar.cc/150?u=${user.uid}`,
+                driverName: user.name,
+                driverId: user.uid,
+                driverAvatar: user.avatar,
                 from: newRide.from,
                 to: newRide.to,
                 date: newRide.date,
                 time: newRide.time,
-                seats: Number(newRide.seats),
+                seatsAvailable: Number(newRide.seats),
                 price: newRide.price || (modalType === 'requesting' ? 'Negotiable' : 'Free'),
-                vehicle: modalType === 'offering' ? newRide.vehicle : null,
+                vehicleType: modalType === 'offering' ? newRide.vehicle : null,
+                notes: ''
             });
 
             setIsModalOpen(false);
             setNewRide({ from: '', to: '', date: '', time: '', seats: 1, price: '', vehicle: '' });
+            
+            // Refresh rides
+            const data = await dbHelpers.getAllRides();
+            setRides(data);
         } catch (err) {
             console.error(err);
             alert("Failed to post ride. Try again.");
@@ -64,6 +88,80 @@ const RideSharing = () => {
     const openModal = (type) => {
         setModalType(type);
         setIsModalOpen(true);
+    };
+
+    const isBooked = (ride) => {
+        return user && ride.passengers?.includes(user.uid);
+    };
+
+    const getAvailableSeats = (ride) => {
+        const total = parseInt(ride.seatsAvailable) || 0;
+        const booked = ride.passengers?.length || 0;
+        return total - booked;
+    };
+
+    const handleBookRide = async (ride) => {
+        if (!user) {
+            alert("Please sign in to book a seat!");
+            return;
+        }
+
+        if (ride.driverId === user.uid) {
+            alert("You can't book your own ride!");
+            return;
+        }
+
+        setBooking(ride.id);
+        try {
+            await dbHelpers.bookRide(ride.id, user.uid);
+            const data = await dbHelpers.getAllRides();
+            setRides(data);
+            alert("Seat booked successfully!");
+        } catch (err) {
+            alert(err.message || "Failed to book. Try again.");
+        } finally {
+            setBooking(null);
+        }
+    };
+
+    const handleCancelBooking = async (ride) => {
+        if (!confirm("Cancel your seat booking?")) return;
+
+        setBooking(ride.id);
+        try {
+            await dbHelpers.cancelRideBooking(ride.id, user.uid);
+            const data = await dbHelpers.getAllRides();
+            setRides(data);
+        } catch (err) {
+            alert(err.message || "Failed to cancel. Try again.");
+        } finally {
+            setBooking(null);
+        }
+    };
+
+    const handleContactDriver = async (ride) => {
+        if (!user) {
+            alert("Please sign in to contact the driver!");
+            return;
+        }
+
+        if (ride.driverId === user.uid) {
+            alert("This is your own ride!");
+            return;
+        }
+
+        try {
+            const chatId = await dbHelpers.getOrCreateChat(
+                user.uid,
+                ride.driverId,
+                ride.id,
+                `${ride.from} to ${ride.to}`
+            );
+            navigate('/messages', { state: { selectedChatId: chatId } });
+        } catch (err) {
+            console.error("Error starting chat:", err);
+            alert("Failed to start chat. Try again.");
+        }
     };
 
     return (
@@ -152,9 +250,9 @@ const RideSharing = () => {
 
                             <div className="flex justify-between items-start mb-6 border-b border-white/5 pb-6">
                                 <div className="flex items-center gap-4">
-                                    <img src={ride.avatar} alt={ride.user} className="w-12 h-12 rounded-full border-2 border-white/10" />
+                                    <img src={ride.driverAvatar || `https://i.pravatar.cc/150?u=${ride.driverId}`} alt={ride.driverName} className="w-12 h-12 rounded-full border-2 border-white/10" />
                                     <div>
-                                        <h3 className="text-white font-bold text-lg">{ride.user}</h3>
+                                        <h3 className="text-white font-bold text-lg">{ride.driverName}</h3>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className={`text-xs font-bold px-2.5 py-1 rounded-md ${ride.type === 'offering' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'
                                                 }`}>
@@ -170,8 +268,13 @@ const RideSharing = () => {
                                 </div>
 
                                 <div className="text-right">
-                                    <div className="text-primary font-bold">{ride.price.includes('Rs') || ride.price.includes('₹') ? ride.price : `₹${ride.price}`}</div>
-                                    <div className="text-gray-500 text-xs mt-1 font-medium">{ride.seats} seat(s) {ride.type === 'offering' ? 'available' : 'needed'}</div>
+                                    <div className="text-primary font-bold">{ride.price?.includes('Rs') || ride.price?.includes('₹') ? ride.price : `₹${ride.price || 0}`}</div>
+                                    <div className="text-gray-500 text-xs mt-1 font-medium">
+                                        {ride.type === 'offering' 
+                                            ? `${getAvailableSeats(ride)}/${ride.seats} seats available`
+                                            : `${ride.seats} seat(s) needed`
+                                        }
+                                    </div>
                                 </div>
                             </div>
 
@@ -213,9 +316,30 @@ const RideSharing = () => {
                                     </div>
                                 </div>
 
-                                <button className="btn-secondary whitespace-nowrap px-6 w-full sm:w-auto flex justify-center items-center gap-2 group-hover:bg-white/10 transition-colors">
-                                    <MessageCircle size={16} /> Contact
-                                </button>
+                                <div className="flex gap-2 w-full sm:w-auto">
+                                    {ride.type === 'offering' && (
+                                        isBooked(ride) ? (
+                                            <button 
+                                                onClick={() => handleCancelBooking(ride)}
+                                                disabled={booking === ride.id}
+                                                className="btn-secondary whitespace-nowrap px-4 w-full sm:w-auto flex justify-center items-center gap-2"
+                                            >
+                                                {booking === ride.id ? <Loader2 size={16} className="animate-spin" /> : <><UserMinus size={16} /> Cancel</>}
+                                            </button>
+                                        ) : (
+                                            <button 
+                                                onClick={() => handleBookRide(ride)}
+                                                disabled={booking === ride.id || getAvailableSeats(ride) <= 0}
+                                                className="btn-primary whitespace-nowrap px-4 w-full sm:w-auto flex justify-center items-center gap-2"
+                                            >
+                                                {booking === ride.id ? <Loader2 size={16} className="animate-spin" /> : <><Ticket size={16} /> Book Seat</>}
+                                            </button>
+                                        )
+                                    )}
+                                    <button onClick={() => handleContactDriver(ride)} className="btn-secondary whitespace-nowrap px-4 w-full sm:w-auto flex justify-center items-center gap-2 group-hover:bg-white/10 transition-colors">
+                                        <MessageCircle size={16} /> Contact
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ))}

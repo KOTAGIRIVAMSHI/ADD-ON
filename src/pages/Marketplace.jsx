@@ -1,33 +1,59 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, Filter, ShoppingBag, X, Plus, Heart, MessageSquare, Send, Loader2 } from 'lucide-react';
-import { useFirestore } from '../hooks/useFirestore';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { dbHelpers } from '../utils/dbHelpers';
 import ImageUpload from '../components/ImageUpload';
+import EmptyState from '../components/EmptyState';
 
-const CATEGORIES = ['All', 'Books', 'Tech & Gear'];
+const CATEGORIES_FILTER = ['All', 'Books', 'Tech & Gear', 'Electronics', 'Furniture', 'Clothing', 'Notes & Papers', 'Calculators', 'Instruments', 'Sports', 'Other', 'AIML', 'Civil', 'Mechanical'];
 
 const Marketplace = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
-    const { docs: items, loading, addDocument } = useFirestore('listings');
-    const { docs: wishlist, addDocument: addToWishlist, deleteDocument: removeFromWishlist } = useFirestore(
-        'wishlist',
-        user ? [where('userId', '==', user.uid)] : []
-    );
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [wishlist, setWishlist] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeCategory, setActiveCategory] = useState('All');
     const [showSavedOnly, setShowSavedOnly] = useState(false);
 
+    // Load listings
+    useEffect(() => {
+        const loadListings = async () => {
+            try {
+                const listings = await dbHelpers.getActiveListings();
+                setItems(listings);
+            } catch (err) {
+                console.error('Error loading listings:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadListings();
+    }, []);
+
+    // Load wishlist
+    useEffect(() => {
+        if (!user) return;
+        const loadWishlist = async () => {
+            try {
+                const saved = await dbHelpers.getUserWishlist(user.uid);
+                setWishlist(saved);
+            } catch (err) {
+                console.error('Error loading wishlist:', err);
+            }
+        };
+        loadWishlist();
+    }, [user?.uid]);
+
+    // Watchlist State
+    const savedItems = new Set(wishlist.map(w => w.listingId));
+
     // Modal State
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-
-    // Watchlist State (derived from Firestore wishlist docs)
-    const savedItems = new Set(wishlist.map(w => w.listingId));
 
     // Handle Navbar shortcut
     React.useEffect(() => {
@@ -39,11 +65,35 @@ const Marketplace = () => {
     }, [location.state]);
     const [newItem, setNewItem] = useState({
         title: '',
+        description: '',
         price: '',
         category: 'Books',
         condition: 'Good',
-        image: ''
+        image: '',
+        negotiable: true,
+        location: ''
     });
+
+    const CATEGORIES = [
+        { value: 'Books', label: 'Books', icon: '📚' },
+        { value: 'Tech & Gear', label: 'Tech & Gadgets', icon: '💻' },
+        { value: 'Electronics', label: 'Electronics', icon: '📱' },
+        { value: 'Furniture', label: 'Furniture', icon: '🪑' },
+        { value: 'Clothing', label: 'Clothing', icon: '👕' },
+        { value: 'Notes & Papers', label: 'Notes & Papers', icon: '📝' },
+        { value: 'Calculators', label: 'Calculators', icon: '🧮' },
+        { value: 'Instruments', label: 'Instruments', icon: '🎸' },
+        { value: 'Sports', label: 'Sports & Fitness', icon: '⚽' },
+        { value: 'Other', label: 'Other', icon: '📦' }
+    ];
+
+    const CONDITIONS = [
+        { value: 'New', label: 'Brand New', desc: 'Never used' },
+        { value: 'Like New', label: 'Like New', desc: 'Used once or twice' },
+        { value: 'Good', label: 'Good', desc: 'Minor wear & tear' },
+        { value: 'Fair', label: 'Fair', desc: 'Visible wear but works' },
+        { value: 'For Parts', label: 'For Parts', desc: 'Not working' }
+    ];
 
     const toggleSaveItem = async (item) => {
         if (!user) {
@@ -53,18 +103,18 @@ const Marketplace = () => {
 
         const existingItem = wishlist.find(w => w.listingId === item.id);
         if (existingItem) {
-            await removeFromWishlist(existingItem.id);
+            await dbHelpers.removeFromWishlist(user.uid, item.id);
+            setWishlist(prev => prev.filter(w => w.listingId !== item.id));
         } else {
-            await addToWishlist({
-                userId: user.uid,
-                listingId: item.id,
+            await dbHelpers.addToWishlist(user.uid, {
+                id: item.id,
                 title: item.title,
                 price: item.price,
-                seller: item.seller,
+                sellerName: item.sellerName,
                 image: item.image,
-                category: item.category,
-                condition: item.condition
+                category: item.category
             });
+            setWishlist(prev => [...prev, { listingId: item.id }]);
         }
     };
 
@@ -79,21 +129,29 @@ const Marketplace = () => {
         if (!newItem.title || !newItem.price) return;
 
         try {
-            await addDocument({
+            await dbHelpers.createListing({
                 title: newItem.title,
+                description: newItem.description,
                 category: newItem.category,
                 price: Number(newItem.price),
                 condition: newItem.condition,
-                seller: user.name,
+                sellerName: user.name,
                 sellerId: user.uid,
-                image: newItem.image || 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=400&h=300'
+                sellerAvatar: user.avatar,
+                image: newItem.image || 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=400&h=300',
+                location: newItem.location,
+                negotiable: newItem.negotiable
             });
 
             setIsCreateModalOpen(false);
-            setNewItem({ title: '', price: '', category: 'Books', condition: 'Good', image: '' });
+            setNewItem({ title: '', description: '', price: '', category: 'Books', condition: 'Good', image: '', negotiable: true, location: '' });
+            
+            // Refresh listings
+            const listings = await dbHelpers.getActiveListings();
+            setItems(listings);
         } catch (err) {
-            console.error(err);
-            alert("Failed to post listing. Check console for errors.");
+            console.error('Error posting listing:', err);
+            alert(`Failed to post listing: ${err.message}`);
         }
     };
 
@@ -109,37 +167,13 @@ const Marketplace = () => {
         }
 
         try {
-            // Check for existing chat
-            const chatsRef = collection(db, 'chats');
-            const q = query(
-                chatsRef,
-                where('itemId', '==', item.id),
-                where('buyerId', '==', user.uid),
-                where('sellerId', '==', item.sellerId)
+            const chatId = await dbHelpers.getOrCreateChat(
+                user.uid,
+                item.sellerId,
+                item.id,
+                item.title
             );
-
-            const querySnapshot = await getDocs(q);
-
-            if (!querySnapshot.empty) {
-                // Chat already exists, just go to messages
-                navigate('/messages');
-            } else {
-                // Create new chat with 24-hr expiry
-                const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-                await addDoc(chatsRef, {
-                    itemId: item.id,
-                    itemName: item.title,
-                    buyerId: user.uid,
-                    buyerName: user.name,
-                    sellerId: item.sellerId,
-                    sellerName: item.seller,
-                    lastMessageAt: serverTimestamp(),
-                    lastMessage: `Hi, is the ${item.title} still available?`,
-                    expiresAt: expiresAt,
-                    createdAt: serverTimestamp()
-                });
-                navigate('/messages');
-            }
+            navigate('/messages', { state: { selectedChatId: chatId } });
         } catch (err) {
             console.error("Error starting chat:", err);
             alert("Failed to start chat. Try again.");
@@ -177,7 +211,7 @@ const Marketplace = () => {
                     <div className="mb-8">
                         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">Categories</h3>
                         <div className="flex flex-col gap-2">
-                            {CATEGORIES.map(category => (
+                            {CATEGORIES_FILTER.map(category => (
                                 <button
                                     key={category}
                                     onClick={() => {
@@ -284,10 +318,36 @@ const Marketplace = () => {
 
                                         <div className="p-5 flex flex-col flex-grow bg-neutral-950/50">
                                             <h3 className="font-semibold text-white text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors">{item.title}</h3>
-                                            <p className="text-gray-500 text-sm mb-4">Seller: <span className="text-gray-300">{item.seller}</span></p>
+                                            
+                                            {item.description && (
+                                                <p className="text-gray-400 text-sm mb-3 line-clamp-2">{item.description}</p>
+                                            )}
+                                            
+                                            <div className="flex flex-wrap gap-2 mb-3">
+                                                <span className="text-xs text-gray-500 bg-white/5 px-2 py-1 rounded">
+                                                    {item.condition}
+                                                </span>
+                                                {item.location && (
+                                                    <span className="text-xs text-gray-500 bg-white/5 px-2 py-1 rounded flex items-center gap-1">
+                                                        📍 {item.location}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <img 
+                                                    src={item.sellerAvatar || `https://i.pravatar.cc/150?u=${item.sellerId}`} 
+                                                    alt={item.sellerName}
+                                                    className="w-6 h-6 rounded-full"
+                                                />
+                                                <span className="text-gray-500 text-sm">by <span className="text-gray-300">{item.sellerName}</span></span>
+                                            </div>
 
                                             <div className="mt-auto flex items-end justify-between">
-                                                <span className="text-2xl font-bold font-heading text-white">₹{item.price}</span>
+                                                <div>
+                                                    <span className="text-2xl font-bold font-heading text-white">₹{item.price}</span>
+                                                    {item.negotiable && <span className="text-xs text-gray-500 ml-2">(Negotiable)</span>}
+                                                </div>
                                                 <button
                                                     onClick={() => handleContactSeller(item)}
                                                     className="text-sm font-semibold flex items-center gap-1 text-primary hover:text-white bg-primary/10 hover:bg-primary px-3 py-2 rounded-lg transition-colors border border-primary/20 hover:border-transparent"
@@ -303,31 +363,17 @@ const Marketplace = () => {
                     )}
 
                     {filteredItems.length === 0 && (
-                        <div className="card-glass p-12 text-center rounded-2xl border-dashed border-white/20">
-                            {showSavedOnly ? (
-                                <Heart className="mx-auto text-rose-500/50 mb-4" size={48} />
-                            ) : (
-                                <Search className="mx-auto text-gray-600 mb-4" size={48} />
-                            )}
-                            <h3 className="text-xl text-white font-semibold mb-2">
-                                {showSavedOnly ? "No saved items yet" : "No items found"}
-                            </h3>
-                            <p className="text-gray-400 max-w-md mx-auto mb-6">
-                                {showSavedOnly
-                                    ? "Click the heart icon on any listing to add it to your watchlist."
-                                    : "We couldn't find anything matching your search. Try changing your filters."
-                                }
-                            </p>
-
-                            {showSavedOnly && (
-                                <button
-                                    className="btn-primary"
-                                    onClick={() => setShowSavedOnly(false)}
-                                >
-                                    Browse Marketplace
-                                </button>
-                            )}
-                        </div>
+                        <EmptyState
+                            icon={showSavedOnly ? Heart : Search}
+                            title={showSavedOnly ? "No saved items yet" : "No items found"}
+                            description={showSavedOnly
+                                ? "Click the heart icon on any listing to add it to your watchlist."
+                                : "We couldn't find anything matching your search. Try changing your filters."
+                            }
+                            actionLabel={showSavedOnly ? "Browse Marketplace" : "Post an Item"}
+                            actionLink={showSavedOnly ? "/marketplace" : undefined}
+                            onAction={showSavedOnly ? () => setShowSavedOnly(false) : () => setIsModalOpen(true)}
+                        />
                     )}
                 </div>
             </div>
@@ -335,12 +381,15 @@ const Marketplace = () => {
             {/* Create Listing Modal Overlay */}
             {isCreateModalOpen && createPortal(
                 <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-[fade-in_0.2s_ease-out]">
-                    <div className="card-glass w-full max-w-lg bg-neutral-900 overflow-hidden flex flex-col shadow-2xl relative animate-[slide-up_0.3s_ease-out]">
+                    <div className="card-glass w-full max-w-2xl bg-neutral-900 overflow-hidden flex flex-col shadow-2xl relative animate-[slide-up_0.3s_ease-out] max-h-[90vh]">
 
-                        <div className="flex justify-between items-center p-6 border-b border-white/10">
-                            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                                <ShoppingBag className="text-primary" /> Post New Item
-                            </h2>
+                        <div className="flex justify-between items-center p-6 border-b border-white/10 bg-neutral-900/50">
+                            <div>
+                                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                                    <ShoppingBag className="text-primary" /> Post New Item
+                                </h2>
+                                <p className="text-gray-400 text-sm mt-1">Fill in the details to list your item</p>
+                            </div>
                             <button
                                 onClick={() => setIsCreateModalOpen(false)}
                                 className="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-2 rounded-full"
@@ -349,7 +398,28 @@ const Marketplace = () => {
                             </button>
                         </div>
 
-                        <form onSubmit={handleCreateSubmit} className="p-6 flex flex-col gap-5 overflow-y-auto max-h-[70vh]">
+                        <form onSubmit={handleCreateSubmit} className="p-6 flex flex-col gap-5 overflow-y-auto max-h-[75vh]">
+
+                            {/* Image Upload - Featured */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Item Photos <span className="text-primary">*</span></label>
+                                <ImageUpload
+                                    folder="listings"
+                                    onUpload={(url) => setNewItem({ ...newItem, image: url })}
+                                />
+                                {newItem.image && (
+                                    <div className="mt-3 relative inline-block">
+                                        <img src={newItem.image} alt="Preview" className="w-24 h-24 rounded-xl object-cover border-2 border-primary/50" />
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewItem({ ...newItem, image: '' })}
+                                            className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-rose-600"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
 
                             {/* Title */}
                             <div>
@@ -359,77 +429,121 @@ const Marketplace = () => {
                                     required
                                     value={newItem.title}
                                     onChange={(e) => setNewItem({ ...newItem, title: e.target.value })}
-                                    placeholder="e.g. Engineering Mathematics Vol 1"
+                                    placeholder="e.g. Engineering Mathematics Vol 1, Casio Scientific Calculator"
                                     className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                                 />
                             </div>
 
-                            {/* Price & Category Row */}
-                            <div className="flex gap-4">
-                                <div className="flex-1">
+                            {/* Description */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1.5">Description <span className="text-gray-500">(optional)</span></label>
+                                <textarea
+                                    value={newItem.description}
+                                    onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
+                                    placeholder="Describe your item - features, brand, reason for selling..."
+                                    rows={3}
+                                    className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all resize-none"
+                                />
+                            </div>
+
+                            {/* Price & Category */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
                                     <label className="block text-sm font-medium text-gray-300 mb-1.5">Price (₹) <span className="text-primary">*</span></label>
-                                    <input
-                                        type="number"
-                                        required
-                                        min="0"
-                                        value={newItem.price}
-                                        onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
-                                        placeholder="0"
-                                        className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
-                                    />
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+                                        <input
+                                            type="number"
+                                            required
+                                            min="0"
+                                            value={newItem.price}
+                                            onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
+                                            placeholder="0"
+                                            className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 pl-8 pr-4 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
+                                        />
+                                    </div>
                                 </div>
-                                <div className="flex-1">
+                                <div>
                                     <label className="block text-sm font-medium text-gray-300 mb-1.5">Category</label>
                                     <select
                                         value={newItem.category}
                                         onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}
                                         className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all appearance-none"
                                     >
-                                        <option value="Books">Books</option>
-                                        <option value="Tech & Gear">Tech & Gear</option>
+                                        {CATEGORIES.map(cat => (
+                                            <option key={cat.value} value={cat.value}>{cat.icon} {cat.label}</option>
+                                        ))}
                                     </select>
                                 </div>
                             </div>
 
-                            {/* Condition & Image URL Row */}
-                            <div className="flex gap-4">
-                                <div className="flex-1">
-                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Condition</label>
-                                    <select
-                                        value={newItem.condition}
-                                        onChange={(e) => setNewItem({ ...newItem, condition: e.target.value })}
-                                        className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all appearance-none"
-                                    >
-                                        <option value="New">New</option>
-                                        <option value="Like New">Like New</option>
-                                        <option value="Good">Good</option>
-                                        <option value="Fair">Fair</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            {/* Image Upload */}
+                            {/* Condition */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Item Image (Required)</label>
-                                <ImageUpload
-                                    folder="listings"
-                                    onUpload={(url) => setNewItem({ ...newItem, image: url })}
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Condition <span className="text-gray-500">(select one)</span></label>
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                                    {CONDITIONS.map(cond => (
+                                        <button
+                                            key={cond.value}
+                                            type="button"
+                                            onClick={() => setNewItem({ ...newItem, condition: cond.value })}
+                                            className={`p-3 rounded-xl border text-center transition-all ${
+                                                newItem.condition === cond.value
+                                                    ? 'bg-primary/20 border-primary/50 text-primary'
+                                                    : 'bg-black/30 border-white/10 text-gray-400 hover:border-white/20'
+                                            }`}
+                                        >
+                                            <div className="font-medium text-sm">{cond.label}</div>
+                                            <div className="text-[10px] opacity-70 mt-0.5">{cond.desc}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Location */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1.5">Location <span className="text-gray-500">(optional)</span></label>
+                                <input
+                                    type="text"
+                                    value={newItem.location}
+                                    onChange={(e) => setNewItem({ ...newItem, location: e.target.value })}
+                                    placeholder="e.g. Block A Hostel, Main Gate, Library"
+                                    className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                                 />
                             </div>
 
+                            {/* Negotiable Toggle */}
+                            <div className="flex items-center justify-between p-4 bg-black/30 rounded-xl border border-white/10">
+                                <div>
+                                    <p className="text-white font-medium">Price Negotiable</p>
+                                    <p className="text-gray-500 text-sm">Allow buyers to negotiate the price</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setNewItem({ ...newItem, negotiable: !newItem.negotiable })}
+                                    className={`w-14 h-8 rounded-full transition-all relative ${
+                                        newItem.negotiable ? 'bg-primary' : 'bg-gray-600'
+                                    }`}
+                                >
+                                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+                                        newItem.negotiable ? 'left-7' : 'left-1'
+                                    }`} />
+                                </button>
+                            </div>
+
                             {/* Actions */}
-                            <div className="mt-4 flex gap-3 pt-4 border-t border-white/10">
+                            <div className="mt-2 flex gap-3 pt-4 border-t border-white/10">
                                 <button
                                     type="button"
                                     onClick={() => setIsCreateModalOpen(false)}
-                                    className="flex-1 btn-secondary"
+                                    className="flex-1 btn-secondary py-3"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 btn-primary"
+                                    className="flex-1 btn-primary py-3 flex items-center justify-center gap-2"
                                 >
+                                    <ShoppingBag size={18} />
                                     Post Listing
                                 </button>
                             </div>

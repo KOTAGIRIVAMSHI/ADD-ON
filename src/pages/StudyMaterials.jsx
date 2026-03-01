@@ -1,649 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Filter, BookOpen, Download, Eye, Link2, Plus, X, UploadCloud, ThumbsUp, Loader2 } from 'lucide-react';
-import { useFirestore } from '../hooks/useFirestore';
 import { useAuth } from '../context/AuthContext';
-
-// Scraped JNTUH Data
-const PDF_MATERIALS = [
-  {
-    "id": 1,
-    "title": "Analog and Digital Electronics",
-    "year": "2nd Year",
-    "branch": "ECE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "730",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-analog-and-digital-electronics-notes.47856/"
-  },
-  {
-    "id": 2,
-    "title": "Applied Physics",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1298",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-applied-physics-important-questions-unit-wise.28411/"
-  },
-  {
-    "id": 3,
-    "title": "Applied Physics [B.Tech R22]",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1009",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-applied-physics-notes-unit-wise.47777/"
-  },
-  {
-    "id": 4,
-    "title": "Automata Theory And Compiler Design",
-    "year": "3rd Year",
-    "branch": "CSE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "668",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-r18-automata-theory-and-compiler-design-atcd-notes-study-materials.49867/"
-  },
-  {
-    "id": 5,
-    "title": "Basic Electrical Engineering",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "673",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-basic-electrical-engineering-study-materials-notes.36369/"
-  },
-  {
-    "id": 6,
-    "title": "Business Economics and Financial Analysis",
-    "year": "All",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1732",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-r18-business-economics-and-financial-analysis-notes.48023/"
-  },
-  {
-    "id": 7,
-    "title": "Chemistry",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1515",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-chemistry-important-questions-mid-exams-bits.32927/"
-  },
-  {
-    "id": 8,
-    "title": "Cloud Computing",
-    "year": "4th Year",
-    "branch": "CSE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "734",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r18-cloud-computing-notes-study-material.48686/"
-  },
-  {
-    "id": 9,
-    "title": "CNC Technology",
-    "year": "All",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1537",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-cnc-technology-unit-wise-study-materials-notes.32178/"
-  },
-  {
-    "id": 10,
-    "title": "Computer Aided Engineering Graphics",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1005",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-computer-aided-engineering-graphics-study-material-notes.39442/"
-  },
-  {
-    "id": 11,
-    "title": "Computer Networks (CN)",
-    "year": "3rd Year",
-    "branch": "CSE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "748",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-r18-computer-networks-notes-study-materials.48453/"
-  },
-  {
-    "id": 12,
-    "title": "Computer Organization and Architecture (COA)",
-    "year": "All",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "517",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-r18-computer-organization-and-architecture-notes-study-materials.48451/"
-  },
-  {
-    "id": 13,
-    "title": "Computer Oriented Statistical Methods (COSM)",
-    "year": "All",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "426",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-computer-oriented-statistical-methods-notes-r22-r18.47857/"
-  },
-  {
-    "id": 14,
-    "title": "Cryptography and Network Security",
-    "year": "4th Year",
-    "branch": "CSE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "730",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r18-r22-cryptography-and-network-security-study-material-and-important-questions.37777/"
-  },
-  {
-    "id": 15,
-    "title": "Database Management Systems (DBMS)",
-    "year": "2nd Year",
-    "branch": "CSE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1468",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-r18-database-management-systems-notes-study-materials.48029/"
-  },
-  {
-    "id": 16,
-    "title": "Data Mining",
-    "year": "4th Year",
-    "branch": "CSE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "270",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r18-data-mining-study-material-important-questions.37784/"
-  },
-  {
-    "id": 17,
-    "title": "Data Structures",
-    "year": "2nd Year",
-    "branch": "CSE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "2059",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-r18-data-structures-notes-unit-wise.47853/"
-  },
-  {
-    "id": 18,
-    "title": "Design and Analysis Of Algorithms (DAA)",
-    "year": "All",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1009",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-r18-design-and-analysis-of-algorithms-daa-notes-study-materials.48576/"
-  },
-  {
-    "id": 19,
-    "title": "DEVOPS",
-    "year": "All",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "261",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-devops-notes-study-materials.57498/"
-  },
-  {
-    "id": 20,
-    "title": "Digital Electronics",
-    "year": "2nd Year",
-    "branch": "ECE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1314",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-digital-electronics-notes.47854/"
-  },
-  {
-    "id": 21,
-    "title": "Digital Logic Design",
-    "year": "2nd Year",
-    "branch": "ECE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "870",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r18-digital-logic-design-study-material.47855/"
-  },
-  {
-    "id": 22,
-    "title": "Discrete Mathematics",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1840",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-discrete-mathematics-notes-study-materials.48024/"
-  },
-  {
-    "id": 23,
-    "title": "Electronic Circuit Analysis (ECA)",
-    "year": "2nd Year",
-    "branch": "ECE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "141",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-electronic-circuit-analysis-notes-study-material.51638/"
-  },
-  {
-    "id": 24,
-    "title": "Electronic Devices and Circuits",
-    "year": "2nd Year",
-    "branch": "ECE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1738",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-electronic-devices-and-circuits-notes-unit-wise.47780/"
-  },
-  {
-    "id": 25,
-    "title": "Electrical and Hybrid Vehicles",
-    "year": "All",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "824",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-r18-electrical-and-hybrid-vehicles-notes-study-material.50198/"
-  },
-  {
-    "id": 26,
-    "title": "Elements Of Computer Science and Engineering",
-    "year": "All",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "423",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-elements-of-computer-science-and-engineering-notes-unit-wise.47775/"
-  },
-  {
-    "id": 27,
-    "title": "English For Skill Enhancement",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1863",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-english-for-skill-enhancement-notes-unit-wise.47778/"
-  },
-  {
-    "id": 28,
-    "title": "Engineering Chemistry",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1468",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-engineering-chemistry-notes-unit-wise.47774/"
-  },
-  {
-    "id": 29,
-    "title": "Engineering Graphics",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "177",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r18-engineering-graphics-study-material-notes.36368/"
-  },
-  {
-    "id": 30,
-    "title": "Engineering Mechanics",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1421",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r18-engineering-mechanics-study-materials-notes.36392/"
-  },
-  {
-    "id": 31,
-    "title": "Engineering Physics",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "161",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r18-engineering-physics-study-material-notes.36393/"
-  },
-  {
-    "id": 32,
-    "title": "Formal Languages and Automata Theory",
-    "year": "3rd Year",
-    "branch": "CSE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1002",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-r18-formal-languages-and-automata-theory-notes-study-materials.48450/"
-  },
-  {
-    "id": 33,
-    "title": "Fundamentals Of Management",
-    "year": "All",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "177",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-fundamentals-of-management-study-materials-important-questions.33520/"
-  },
-  {
-    "id": 34,
-    "title": "Hydrology and Water Resources Engineering (HWRE)",
-    "year": "3rd Year",
-    "branch": "Civil",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1689",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-r18-hydrology-and-water-resources-engineering-hwre-notes.48575/"
-  },
-  {
-    "id": 35,
-    "title": "Information Security",
-    "year": "4th Year",
-    "branch": "CSE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "396",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-information-security-study-material-notes.37810/"
-  },
-  {
-    "id": 36,
-    "title": "Internet of Things (IOT)",
-    "year": "All",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1347",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-internet-of-things-iot-study-material-notes.37819/"
-  },
-  {
-    "id": 37,
-    "title": "Introduction To Embedded Systems (IES)",
-    "year": "All",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1517",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r18-introduction-to-embedded-systems-study-materials-notes.49054/"
-  },
-  {
-    "id": 38,
-    "title": "Introduction To Artificial Intelligence",
-    "year": "3rd Year",
-    "branch": "AIML",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "510",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-introduction-to-artificial-intelligence-iai-notes-study-materials.49869/"
-  },
-  {
-    "id": 39,
-    "title": "Java Programming",
-    "year": "2nd Year",
-    "branch": "CSE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "531",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r18-java-programming-notes-study-materials.48030/"
-  },
-  {
-    "id": 40,
-    "title": "Machine Learning",
-    "year": "3rd Year",
-    "branch": "AIML",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "426",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-machine-learning-notes-study-material.49855/"
-  },
-  {
-    "id": 41,
-    "title": "Mathematics - I",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "217",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-mathematics-i-important-short-long-answer-questions-objective-bits-for-mid-exams.32925/"
-  },
-  {
-    "id": 42,
-    "title": "Mathematics - II",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "215",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-mathematics-ii-notes.32926/"
-  },
-  {
-    "id": 43,
-    "title": "Mathematical and Statistical Foundations",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1312",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-r18-mathematical-and-statistical-foundations-notes-study-material.49890/"
-  },
-  {
-    "id": 44,
-    "title": "Matrices and Calculus",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "517",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-matrices-and-calculus-notes-unit-wise.47773/"
-  },
-  {
-    "id": 45,
-    "title": "Microwave and Optical Communications",
-    "year": "2nd Year",
-    "branch": "ECE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "510",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-microwave-and-optical-communications-short-and-long-important-questions.37829/"
-  },
-  {
-    "id": 46,
-    "title": "Object Oriented Programming Using C++",
-    "year": "2nd Year",
-    "branch": "CSE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "890",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-object-oriented-programming-using-c-notes.47876/"
-  },
-  {
-    "id": 47,
-    "title": "Object Oriented Programming Through Java",
-    "year": "2nd Year",
-    "branch": "CSE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "530",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-object-oriented-programming-through-java-notes-r22-r18.47875/"
-  },
-  {
-    "id": 48,
-    "title": "Operating Systems",
-    "year": "2nd Year",
-    "branch": "CSE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "203",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-operating-systems-notes-study-materials.48028/"
-  },
-  {
-    "id": 49,
-    "title": "Ordinary Differential Equations and Vector Calculus",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "662",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-ordinary-differential-equations-and-vector-calculus-notes-unit-wise.47771/"
-  },
-  {
-    "id": 50,
-    "title": "Python Programming",
-    "year": "All",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1351",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-python-programming-study-materials-and-important-questions.28250/"
-  },
-  {
-    "id": 51,
-    "title": "Programming for Problem Solving (PPS)",
-    "year": "1st Year",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1940",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-programming-for-problem-solving-pps-study-materials-question-and-answers-solutions-to-previous-question-papers.28259/"
-  },
-  {
-    "id": 52,
-    "title": "Signals and Systems",
-    "year": "2nd Year",
-    "branch": "ECE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "592",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-r18-signals-and-systems-notes-study-materials.48025/"
-  },
-  {
-    "id": 53,
-    "title": "Software Engineering",
-    "year": "All",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1421",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-r18-software-engineering-notes-study-materials.48038/"
-  },
-  {
-    "id": 54,
-    "title": "Structural Analysis - I",
-    "year": "3rd Year",
-    "branch": "Civil",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1674",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-r18-structural-analysis-i-notes-study-materials.48452/"
-  },
-  {
-    "id": 55,
-    "title": "Structural Analysis II (SA- II )",
-    "year": "3rd Year",
-    "branch": "Civil",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "138",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r22-r18-structural-analysis-ii-sa-ii-notes-important-question-and-objective-bits.48574/"
-  },
-  {
-    "id": 56,
-    "title": "Web Programming",
-    "year": "All",
-    "branch": "All",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1424",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r18-web-programming-notes-study-material.49930/"
-  },
-  {
-    "id": 57,
-    "title": "Web Technologies (WT)",
-    "year": "3rd Year",
-    "branch": "CSE",
-    "size": "External",
-    "type": "Study Material",
-    "author": "JNTUH Forum",
-    "downloads": "1002",
-    "url": "https://www.forum.universityupdates.in/threads/jntuh-b-tech-r18-web-technologies-notes-study-materials.48539/"
-  }
-];
+import { dbHelpers } from '../utils/dbHelpers';
 
 const YEARS = ['All Years', '1st Year', '2nd Year', '3rd Year', '4th Year'];
 const BRANCHES = ['All Branches', 'CSE', 'ECE', 'Civil', 'Mech', 'AIML', 'AI-DS'];
 
 const StudyMaterials = () => {
   const { user } = useAuth();
-  const { docs: materials, loading, addDocument, updateDocument } = useFirestore('materials');
+  const [materials, setMaterials] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeYear, setActiveYear] = useState('All Years');
   const [activeBranch, setActiveBranch] = useState('All Branches');
+
+  // Load materials
+  useEffect(() => {
+    const loadMaterials = async () => {
+      try {
+        const data = await dbHelpers.getMaterials();
+        setMaterials(data);
+      } catch (err) {
+        console.error('Error loading materials:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadMaterials();
+  }, []);
 
   // Viewer State
   const [activePdfViewer, setActivePdfViewer] = useState(null);
@@ -666,7 +51,7 @@ const StudyMaterials = () => {
     if (!newUpload.title || !newUpload.url) return;
 
     try {
-      await addDocument({
+      await dbHelpers.uploadMaterial({
         title: newUpload.title,
         year: newUpload.year,
         branch: newUpload.branch,
@@ -674,13 +59,15 @@ const StudyMaterials = () => {
         type: "PDF Document",
         author: user.name,
         uploaderId: user.uid,
-        downloads: 0,
-        url: newUpload.url,
-        upvotes: [] // Store UIDs of people who upvoted
+        url: newUpload.url
       });
 
       setIsUploadModalOpen(false);
       setNewUpload({ title: '', year: '1st Year', branch: 'CSE', url: '' });
+      
+      // Refresh materials
+      const data = await dbHelpers.getMaterials();
+      setMaterials(data);
     } catch (err) {
       console.error(err);
       alert("Upload failed. Check console.");
@@ -693,15 +80,29 @@ const StudyMaterials = () => {
       return;
     }
 
-    const hasUpvoted = currentUpvotes.includes(user.uid);
-    const newUpvotes = hasUpvoted
-      ? currentUpvotes.filter(uid => uid !== user.uid)
-      : [...currentUpvotes, user.uid];
-
     try {
-      await updateDocument(id, { upvotes: newUpvotes });
+      const hasUpvoted = currentUpvotes?.includes(user.uid);
+      
+      // Optimistically update local state first
+      setMaterials(prev => prev.map(m => {
+        if (m.id === id) {
+          return {
+            ...m,
+            upvotes: hasUpvoted
+              ? (m.upvotes || []).filter(uid => uid !== user.uid)
+              : [...(m.upvotes || []), user.uid]
+          };
+        }
+        return m;
+      }));
+      
+      // Then update in database
+      await dbHelpers.toggleUpvote(id, user.uid, currentUpvotes);
     } catch (err) {
       console.error(err);
+      // Revert on error by refreshing
+      const data = await dbHelpers.getMaterials();
+      setMaterials(data);
     }
   };
 

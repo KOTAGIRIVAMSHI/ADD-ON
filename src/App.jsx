@@ -8,23 +8,26 @@ import RideSharing from './pages/RideSharing';
 import Profile from './pages/Profile';
 import Messages from './pages/Messages';
 import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
 import AuthModal from './components/AuthModal';
 
 function App() {
   return (
     <AuthProvider>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/marketplace" element={<Marketplace />} />
-          <Route path="/study-materials" element={<StudyMaterials />} />
-          <Route path="/events" element={<Events />} />
-          <Route path="/ride-sharing" element={<RideSharing />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/messages" element={<Messages />} />
-        </Routes>
-      </Layout>
-      <AuthModal />
+      <ToastProvider>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/marketplace" element={<Marketplace />} />
+            <Route path="/study-materials" element={<StudyMaterials />} />
+            <Route path="/events" element={<Events />} />
+            <Route path="/ride-sharing" element={<RideSharing />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/messages" element={<Messages />} />
+          </Routes>
+        </Layout>
+        <AuthModal />
+      </ToastProvider>
     </AuthProvider>
   );
 }

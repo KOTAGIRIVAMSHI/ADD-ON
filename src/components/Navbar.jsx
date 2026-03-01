@@ -9,7 +9,7 @@ const Navbar = () => {
     const [campusLifeOpen, setCampusLifeOpen] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
     const location = useLocation();
-    const { user, logout, setIsAuthModalOpen } = useAuth();
+    const { user, logout, setIsAuthModalOpen, unreadCount } = useAuth();
 
     useEffect(() => {
         const handleScroll = () => {
@@ -45,6 +45,7 @@ const Navbar = () => {
                 <nav className="hidden md:flex items-center gap-8">
                     {navLinks.map((link) => {
                         const isActive = location.pathname === link.path;
+                        const isMessages = link.path === '/messages';
                         return (
                             <Link
                                 key={link.path}
@@ -54,6 +55,11 @@ const Navbar = () => {
                             >
                                 {link.icon && <span>{link.icon}</span>}
                                 {link.name}
+                                {isMessages && unreadCount > 0 && (
+                                    <span className="absolute -top-1 -right-3 bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                                        {unreadCount > 99 ? '99+' : unreadCount}
+                                    </span>
+                                )}
                                 <span className={`absolute -bottom-2 left-0 h-0.5 bg-primary transition-all duration-300 rounded-full
                   ${isActive ? 'w-full' : 'w-0 group-hover:w-full opacity-50'}`}></span>
                             </Link>
@@ -158,16 +164,24 @@ const Navbar = () => {
                 <div className="container mx-auto px-6 flex flex-col gap-2">
                     {navLinks.map((link) => {
                         const isActive = location.pathname === link.path;
+                        const isMessages = link.path === '/messages';
                         return (
                             <Link
                                 key={link.path}
                                 to={link.path}
-                                className={`flex items-center gap-3 p-3 rounded-xl font-medium transition-all
+                                className={`flex items-center justify-between gap-3 p-3 rounded-xl font-medium transition-all
                   ${isActive ? 'bg-primary/20 text-primary border border-primary/30' : 'text-gray-300 hover:bg-white/5 hover:text-white'}`}
                                 onClick={() => setMobileMenuOpen(false)}
                             >
-                                {link.icon && <span>{link.icon}</span>}
-                                {link.name}
+                                <div className="flex items-center gap-3">
+                                    {link.icon && <span>{link.icon}</span>}
+                                    {link.name}
+                                </div>
+                                {isMessages && unreadCount > 0 && (
+                                    <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                                        {unreadCount > 99 ? '99+' : unreadCount}
+                                    </span>
+                                )}
                             </Link>
                         )
                     })}

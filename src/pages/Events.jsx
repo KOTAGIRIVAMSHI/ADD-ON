@@ -1,20 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, MapPin, Clock, Users, Plus, Filter, Search, ChevronRight, Tag, X, Loader2 } from 'lucide-react';
-import { useFirestore } from '../hooks/useFirestore';
+import { Calendar, MapPin, Clock, Users, Plus, Filter, Search, ChevronRight, Tag, X, Loader2, UserCheck, UserPlus, Share2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { dbHelpers } from '../utils/dbHelpers';
 import ImageUpload from '../components/ImageUpload';
 
 const CATEGORIES = ['All', 'Tech', 'Sports', 'Workshop', 'Community'];
 
 const Events = () => {
     const { user } = useAuth();
-    const { docs: events, loading, addDocument } = useFirestore('events');
+    const [events, setEvents] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeCategory, setActiveCategory] = useState('All');
+    const [registering, setRegistering] = useState(null);
+
+    // Load events
+    useEffect(() => {
+        const loadEvents = async () => {
+            try {
+                const data = await dbHelpers.getUpcomingEvents(50);
+                setEvents(data);
+            } catch (err) {
+                console.error('Error loading events:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadEvents();
+    }, []);
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedEvent, setSelectedEvent] = useState(null);
     const [newEvent, setNewEvent] = useState({
         title: '',
         category: 'Tech',
@@ -22,8 +40,49 @@ const Events = () => {
         time: '',
         location: '',
         description: '',
+        seats: '',
         image: ''
     });
+
+    const handleRegister = async (event) => {
+        if (!user) {
+            alert("Please sign in to register for events!");
+            return;
+        }
+
+        setRegistering(event.id);
+        try {
+            await dbHelpers.registerForEvent(event.id, user.uid);
+            const data = await dbHelpers.getUpcomingEvents(50);
+            setEvents(data);
+            alert("Successfully registered! See you there.");
+        } catch (err) {
+            alert(err.message || "Failed to register. Try again.");
+        } finally {
+            setRegistering(null);
+        }
+    };
+
+    const handleUnregister = async (event) => {
+        if (!user) return;
+        
+        if (!confirm("Are you sure you want to cancel your registration?")) return;
+
+        setRegistering(event.id);
+        try {
+            await dbHelpers.unregisterFromEvent(event.id, user.uid);
+            const data = await dbHelpers.getUpcomingEvents(50);
+            setEvents(data);
+        } catch (err) {
+            alert(err.message || "Failed to unregister. Try again.");
+        } finally {
+            setRegistering(null);
+        }
+    };
+
+    const isRegistered = (event) => {
+        return user && event.registeredUsers?.includes(user.uid);
+    };
 
     const filteredEvents = events.filter(event => {
         const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -40,21 +99,25 @@ const Events = () => {
         }
 
         try {
-            await addDocument({
+            await dbHelpers.createEvent({
                 title: newEvent.title,
                 category: newEvent.category,
                 date: newEvent.date,
                 time: newEvent.time,
                 location: newEvent.location,
                 description: newEvent.description,
-                organizer: user.name,
+                seats: newEvent.seats ? parseInt(newEvent.seats) : 0,
+                organizerName: user.name,
                 organizerId: user.uid,
-                attendees: 1, // Organizer is the first attendee
                 image: newEvent.image || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=800&h=400'
             });
 
             setIsModalOpen(false);
-            setNewEvent({ title: '', category: 'Tech', date: '', time: '', location: '', description: '', image: '' });
+            setNewEvent({ title: '', category: 'Tech', date: '', time: '', location: '', description: '', seats: '', image: '' });
+            
+            // Refresh events
+            const data = await dbHelpers.getUpcomingEvents(50);
+            setEvents(data);
         } catch (err) {
             console.error(err);
             alert("Failed to post event. Try again.");
@@ -151,8 +214,8 @@ const Events = () => {
 
                                         {/* Date Badge */}
                                         <div className="absolute top-3 left-3 z-20 bg-black/80 backdrop-blur-md rounded-lg p-2 text-center border border-white/10 min-w-[60px]">
-                                            <div className="text-primary text-xs font-bold uppercase">{event.date.split(' ')[0]}</div>
-                                            <div className="text-white text-xl font-bold">{event.date.split(' ')[1]?.replace(',', '') || event.date}</div>
+                                            <div className="text-primary text-xs font-bold uppercase">{event.date?.split(' ')[0] || 'TBD'}</div>
+                                            <div className="text-white text-xl font-bold">{event.date?.split(' ')[1]?.replace(',', '') || event.date}</div>
                                         </div>
 
                                         {/* Category Badge */}
@@ -182,14 +245,15 @@ const Events = () => {
                                                 </div>
                                                 <div className="flex items-center gap-2 text-sm text-gray-400 sm:col-span-2">
                                                     <Users size={16} className="text-gray-500" />
-                                                    <span>{event.attendees} attending</span>
+                                                    <span>{event.registeredUsers?.length || 0} attending</span>
+                                                    {event.seats && <span className="text-gray-600">• {event.seats} spots</span>}
                                                 </div>
                                             </div>
                                         </div>
 
                                         <div className="flex items-center justify-between pt-4 border-t border-white/5 mt-2">
                                             <p className="text-gray-400 text-sm line-clamp-1 flex-1 pr-4">{event.description}</p>
-                                            <button className="btn-secondary whitespace-nowrap px-4 py-2 text-sm group-hover:bg-primary group-hover:text-black group-hover:border-primary transition-all">
+                                            <button onClick={() => setSelectedEvent(event)} className="btn-secondary whitespace-nowrap px-4 py-2 text-sm group-hover:bg-primary group-hover:text-black group-hover:border-primary transition-all">
                                                 View Details
                                             </button>
                                         </div>
@@ -214,6 +278,79 @@ const Events = () => {
                     )}
                 </div>
             </div>
+
+            {/* Event Details Modal */}
+            {selectedEvent && createPortal(
+                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-[fade-in_0.2s_ease-out]">
+                    <div className="card-glass w-full max-w-2xl bg-neutral-900 overflow-hidden flex flex-col shadow-2xl relative animate-[slide-up_0.3s_ease-out]">
+                        <div className="relative h-48 overflow-hidden">
+                            <img src={selectedEvent.image} alt={selectedEvent.title} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-neutral-900 to-transparent"></div>
+                            <button
+                                onClick={() => setSelectedEvent(null)}
+                                className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/80 transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                            <div className="absolute bottom-4 left-4">
+                                <span className="bg-primary text-black text-xs font-bold px-3 py-1 rounded-full">{selectedEvent.category}</span>
+                            </div>
+                        </div>
+                        
+                        <div className="p-6">
+                            <h2 className="text-2xl font-bold text-white mb-2">{selectedEvent.title}</h2>
+                            <p className="text-primary font-medium text-sm mb-4">by {selectedEvent.organizer}</p>
+                            
+                            <div className="grid grid-cols-2 gap-4 mb-6">
+                                <div className="flex items-center gap-2 text-gray-400">
+                                    <Calendar size={16} className="text-gray-500" />
+                                    <span>{selectedEvent.date}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-gray-400">
+                                    <Clock size={16} className="text-gray-500" />
+                                    <span>{selectedEvent.time}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-gray-400 col-span-2">
+                                    <MapPin size={16} className="text-gray-500" />
+                                    <span>{selectedEvent.location}</span>
+                                </div>
+                            </div>
+                            
+                            {selectedEvent.description && (
+                                <div className="mb-6">
+                                    <h3 className="text-white font-semibold mb-2">About</h3>
+                                    <p className="text-gray-400 text-sm">{selectedEvent.description}</p>
+                                </div>
+                            )}
+                            
+                            <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                                <div className="flex items-center gap-2 text-gray-400">
+                                    <Users size={16} className="text-gray-500" />
+                                    <span>{selectedEvent.registeredUsers?.length || 0} attending</span>
+                                    {selectedEvent.seats && <span className="text-gray-600">• {selectedEvent.seats} spots</span>}
+                                </div>
+                                {isRegistered(selectedEvent) ? (
+                                    <button 
+                                        onClick={() => handleUnregister(selectedEvent)}
+                                        disabled={registering === selectedEvent.id}
+                                        className="btn-secondary"
+                                    >
+                                        {registering === selectedEvent.id ? <Loader2 size={16} className="animate-spin" /> : "Cancel Registration"}
+                                    </button>
+                                ) : (
+                                    <button 
+                                        onClick={() => handleRegister(selectedEvent)}
+                                        disabled={registering === selectedEvent.id}
+                                        className="btn-primary flex items-center gap-2"
+                                    >
+                                        {registering === selectedEvent.id ? <Loader2 size={16} className="animate-spin" /> : <><UserPlus size={16} /> Register</>}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>, document.body
+            )}
 
             {/* Host Event Modal */}
             {isModalOpen && createPortal(
@@ -291,6 +428,18 @@ const Events = () => {
                                         className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary"
                                     />
                                 </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1.5">Seats (leave empty for unlimited)</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={newEvent.seats}
+                                    onChange={(e) => setNewEvent({ ...newEvent, seats: e.target.value })}
+                                    placeholder="e.g. 50"
+                                    className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary"
+                                />
                             </div>
 
                             <div>

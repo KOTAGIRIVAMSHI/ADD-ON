@@ -1,0 +1,125 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isOrganizer(resourceData) {
+      return request.auth.uid == resourceData.organizerId;
+    }
+    
+    function isSeller(resourceData) {
+      return request.auth.uid == resourceData.sellerId;
+    }
+    
+    function isDriver(resourceData) {
+      return request.auth.uid == resourceData.driverId;
+    }
+
+    // ==================== USERS ====================
+    // Anyone can read profiles, only user can update their own
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && isOwner(userId);
+    }
+
+    // ==================== LISTINGS ====================
+    // Anyone can read active listings
+    // Only owner can create/update/delete their listings
+    match /listings/{listingId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasAll(['title', 'price', 'sellerId', 'category'])
+        && request.resource.data.sellerId == request.auth.uid;
+      allow update: if isSignedIn() && isSeller(resource.data);
+      allow delete: if isSignedIn() && isSeller(resource.data);
+    }
+
+    // ==================== WISHLIST ====================
+    // Only owner can access their wishlist
+    match /wishlist/{wishlistId} {
+      allow read, create, delete: if isSignedIn() && isOwner(resource.data.userId);
+      allow update: if false; // No updates needed
+    }
+
+    // ==================== MATERIALS ====================
+    // Anyone can read, auth users can create
+    // Only uploader can update/delete their materials
+    match /materials/{materialId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasAll(['title', 'url', 'year', 'branch'])
+        && request.resource.data.uploaderId == request.auth.uid;
+      allow update: if isSignedIn() && request.auth.uid == resource.data.uploaderId;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.uploaderId;
+    }
+
+    // ==================== EVENTS ====================
+    // Anyone can read events
+    // Only organizer can update/delete
+    // Auth users can register
+    match /events/{eventId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasAll(['title', 'date', 'organizerId'])
+        && request.resource.data.organizerId == request.auth.uid;
+      allow update: if isSignedIn() && isOrganizer(resource.data);
+      allow delete: if isSignedIn() && isOrganizer(resource.data);
+    }
+
+    // ==================== RIDES ====================
+    // Anyone can read active rides
+    // Driver can update their rides
+    // Auth users can book rides
+    match /rides/{rideId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasAll(['from', 'to', 'driverId'])
+        && request.resource.data.driverId == request.auth.uid;
+      allow update: if isSignedIn() 
+        && (isDriver(resource.data) || request.resource.data.keys().hasAll(['passengers']));
+      allow delete: if isSignedIn() && isDriver(resource.data);
+    }
+
+    // ==================== CHATS ====================
+    // Only participants can read/write their chats
+    match /chats/{chatId} {
+      allow read: if isSignedIn() 
+        && (request.auth.uid == resource.data.buyerId || request.auth.uid == resource.data.sellerId);
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasAll(['buyerId', 'sellerId'])
+        && (request.auth.uid == request.resource.data.buyerId || request.auth.uid == request.resource.data.sellerId);
+      allow update: if isSignedIn()
+        && (request.auth.uid == resource.data.buyerId || request.auth.uid == resource.data.sellerId);
+      allow delete: if false; // Don't allow deleting chats
+    }
+
+    // ==================== MESSAGES ====================
+    // Messages in chats - only participants
+    match /chats/{chatId}/messages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasAll(['senderId', 'text'])
+        && request.resource.data.senderId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ==================== NOTIFICATIONS ====================
+    // Only recipient can access their notifications
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && isOwner(resource.data.userId);
+      allow create: if isSignedIn(); // System creates notifications
+      allow update: if isSignedIn() && isOwner(resource.data.userId);
+      allow delete: if isSignedIn() && isOwner(resource.data.userId);
+    }
+  }
+}
