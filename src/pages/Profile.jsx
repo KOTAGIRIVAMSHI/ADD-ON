@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ShoppingBag, BookOpen, Heart, Package, ChevronRight, Edit3, Trash2, ExternalLink, Loader2 } from 'lucide-react';
 import { useFirestore } from '../hooks/useFirestore';
@@ -7,6 +7,7 @@ import { where } from 'firebase/firestore';
 
 const Profile = () => {
     const { user, logout } = useAuth();
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('listings'); // listings, saved, uploads
 
     // Fetch User Listings
@@ -19,6 +20,12 @@ const Profile = () => {
     const { docs: myUploads, loading: uploadsLoading } = useFirestore(
         'materials',
         user ? [where('uploaderId', '==', user.uid)] : []
+    );
+
+    // Fetch User Wishlist
+    const { docs: myWishlist, loading: wishlistLoading, deleteDocument: removeFromWishlist } = useFirestore(
+        'wishlist',
+        user ? [where('userId', '==', user.uid)] : []
     );
 
     if (!user) return <Navigate to="/" />;
@@ -66,8 +73,8 @@ const Profile = () => {
                                 <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Uploads</p>
                             </div>
                             <div className="text-center md:text-left">
-                                <p className="text-2xl font-bold text-white">0</p>
-                                <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Rating</p>
+                                <p className="text-2xl font-bold text-white">{myWishlist.length}</p>
+                                <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Saved</p>
                             </div>
                         </div>
                     </div>
@@ -153,7 +160,13 @@ const Profile = () => {
                             )) : (
                                 <div className="text-center py-20 bg-white/[0.02] rounded-3xl border border-dashed border-white/10">
                                     <Package className="mx-auto text-gray-700 mb-4" size={48} />
-                                    <p className="text-gray-500">You haven't listed anything yet.</p>
+                                    <p className="text-gray-500 mb-6">You haven't listed anything yet.</p>
+                                    <button
+                                        onClick={() => navigate('/marketplace')}
+                                        className="btn-primary"
+                                    >
+                                        Post an Item
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -161,17 +174,25 @@ const Profile = () => {
 
                     {activeTab === 'saved' && (
                         <div className="grid grid-cols-1 gap-4">
-                            {MOCK_SAVED_ITEMS.length > 0 ? MOCK_SAVED_ITEMS.map(item => (
-                                <div key={item.id} className="card-glass p-4 flex items-center gap-6 group">
+                            {wishlistLoading ? (
+                                <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-primary" size={32} /></div>
+                            ) : myWishlist.length > 0 ? myWishlist.map(item => (
+                                <div key={item.id} className="card-glass p-4 flex items-center gap-6 group hover:border-rose-500/20 transition-all">
                                     <img src={item.image} alt={item.title} className="w-24 h-24 rounded-xl object-cover border border-white/5" />
                                     <div className="flex-1">
                                         <h3 className="font-bold text-white text-lg mb-1">{item.title}</h3>
-                                        <p className="text-primary font-bold mb-1">{item.price}</p>
+                                        <p className="text-primary font-bold mb-1">₹{item.price}</p>
                                         <p className="text-xs text-gray-500">Seller: <span className="text-gray-300">{item.seller}</span></p>
                                     </div>
-                                    <button className="btn-secondary px-4 py-2 flex items-center gap-2 text-xs">
-                                        Buy Now <ExternalLink size={14} />
-                                    </button>
+                                    <div className="flex flex-col gap-2">
+                                        <button
+                                            onClick={() => removeFromWishlist(item.id)}
+                                            className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-rose-500 hover:bg-rose-500 hover:text-white transition-all"
+                                            title="Remove from Saved"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
                                 </div>
                             )) : (
                                 <div className="text-center py-20 bg-white/[0.02] rounded-3xl border border-dashed border-white/10">

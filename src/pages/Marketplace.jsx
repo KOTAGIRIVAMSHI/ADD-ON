@@ -1,23 +1,42 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, Filter, ShoppingBag, X, Plus, Heart, MessageSquare, Send, Loader2 } from 'lucide-react';
 import { useFirestore } from '../hooks/useFirestore';
 import { useAuth } from '../context/AuthContext';
+import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebase';
+import ImageUpload from '../components/ImageUpload';
 
 const CATEGORIES = ['All', 'Books', 'Tech & Gear'];
 
 const Marketplace = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
     const { docs: items, loading, addDocument } = useFirestore('listings');
+    const { docs: wishlist, addDocument: addToWishlist, deleteDocument: removeFromWishlist } = useFirestore(
+        'wishlist',
+        user ? [where('userId', '==', user.uid)] : []
+    );
     const [searchTerm, setSearchTerm] = useState('');
     const [activeCategory, setActiveCategory] = useState('All');
-
-    // Watchlist State
-    const [savedItems, setSavedItems] = useState(new Set());
     const [showSavedOnly, setShowSavedOnly] = useState(false);
 
     // Modal State
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+    // Watchlist State (derived from Firestore wishlist docs)
+    const savedItems = new Set(wishlist.map(w => w.listingId));
+
+    // Handle Navbar shortcut
+    React.useEffect(() => {
+        if (location.state?.openCreateModal) {
+            setIsCreateModalOpen(true);
+            // Clear state so it doesn't reopen on refresh
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state]);
     const [newItem, setNewItem] = useState({
         title: '',
         price: '',
@@ -26,30 +45,27 @@ const Marketplace = () => {
         image: ''
     });
 
-    // Chat State
-    const [activeChat, setActiveChat] = useState(null);
-    const [chatMessages, setChatMessages] = useState([]);
-    const [messageInput, setMessageInput] = useState('');
-    const messagesEndRef = useRef(null);
+    const toggleSaveItem = async (item) => {
+        if (!user) {
+            alert("Please sign in to save items!");
+            return;
+        }
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
-    useEffect(() => {
-        if (activeChat) scrollToBottom();
-    }, [chatMessages, activeChat]);
-
-    const toggleSaveItem = (id) => {
-        setSavedItems(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(id)) {
-                newSet.delete(id);
-            } else {
-                newSet.add(id);
-            }
-            return newSet;
-        });
+        const existingItem = wishlist.find(w => w.listingId === item.id);
+        if (existingItem) {
+            await removeFromWishlist(existingItem.id);
+        } else {
+            await addToWishlist({
+                userId: user.uid,
+                listingId: item.id,
+                title: item.title,
+                price: item.price,
+                seller: item.seller,
+                image: item.image,
+                category: item.category,
+                condition: item.condition
+            });
+        }
     };
 
     const handleCreateSubmit = async (e) => {
@@ -60,7 +76,6 @@ const Marketplace = () => {
             return;
         }
 
-        // Basic validation
         if (!newItem.title || !newItem.price) return;
 
         try {
@@ -82,39 +97,52 @@ const Marketplace = () => {
         }
     };
 
-    const openChat = (item) => {
-        setActiveChat(item);
-        // Simulate initial conversation based on item
-        setChatMessages([
-            { id: 1, text: `Hi, is the ${item.title} still available?`, sender: 'me', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
-            { id: 2, text: `Yes, it is! Let me know if you want to meet up on campus.`, sender: 'them', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
-        ]);
-    };
+    const handleContactSeller = async (item) => {
+        if (!user) {
+            alert("Please sign in to message the seller!");
+            return;
+        }
 
-    const sendMessage = (e) => {
-        e.preventDefault();
-        if (!messageInput.trim()) return;
+        if (item.sellerId === user.uid) {
+            alert("This is your own listing!");
+            return;
+        }
 
-        const newMsg = {
-            id: Date.now(),
-            text: messageInput,
-            sender: 'me',
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
+        try {
+            // Check for existing chat
+            const chatsRef = collection(db, 'chats');
+            const q = query(
+                chatsRef,
+                where('itemId', '==', item.id),
+                where('buyerId', '==', user.uid),
+                where('sellerId', '==', item.sellerId)
+            );
 
-        setChatMessages([...chatMessages, newMsg]);
-        setMessageInput('');
+            const querySnapshot = await getDocs(q);
 
-        // Simulate a reply after 1.5 seconds if it's not the user's listing
-        if (activeChat.seller !== 'You') {
-            setTimeout(() => {
-                setChatMessages(prev => [...prev, {
-                    id: Date.now() + 1,
-                    text: "Sounds good, I'll text you when I'm near the library.",
-                    sender: 'them',
-                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                }]);
-            }, 1500);
+            if (!querySnapshot.empty) {
+                // Chat already exists, just go to messages
+                navigate('/messages');
+            } else {
+                // Create new chat with 24-hr expiry
+                const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+                await addDoc(chatsRef, {
+                    itemId: item.id,
+                    itemName: item.title,
+                    buyerId: user.uid,
+                    buyerName: user.name,
+                    sellerId: item.sellerId,
+                    sellerName: item.seller,
+                    lastMessageAt: serverTimestamp(),
+                    lastMessage: `Hi, is the ${item.title} still available?`,
+                    expiresAt: expiresAt,
+                    createdAt: serverTimestamp()
+                });
+                navigate('/messages');
+            }
+        } catch (err) {
+            console.error("Error starting chat:", err);
+            alert("Failed to start chat. Try again.");
         }
     };
 
@@ -247,7 +275,7 @@ const Marketplace = () => {
 
                                             {/* Save Button */}
                                             <button
-                                                onClick={() => toggleSaveItem(item.id)}
+                                                onClick={() => toggleSaveItem(item)}
                                                 className="absolute top-3 left-3 z-20 w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-black/80 transition-colors"
                                             >
                                                 <Heart size={16} className={`${isSaved ? 'fill-rose-500 text-rose-500' : 'text-white'} transition-colors duration-300`} />
@@ -261,7 +289,7 @@ const Marketplace = () => {
                                             <div className="mt-auto flex items-end justify-between">
                                                 <span className="text-2xl font-bold font-heading text-white">₹{item.price}</span>
                                                 <button
-                                                    onClick={() => openChat(item)}
+                                                    onClick={() => handleContactSeller(item)}
                                                     className="text-sm font-semibold flex items-center gap-1 text-primary hover:text-white bg-primary/10 hover:bg-primary px-3 py-2 rounded-lg transition-colors border border-primary/20 hover:border-transparent"
                                                 >
                                                     <MessageSquare size={16} /> Contact
@@ -303,83 +331,6 @@ const Marketplace = () => {
                     )}
                 </div>
             </div>
-
-            {/* Chat Drawer Sidebar Overlay */}
-            {activeChat && createPortal(
-                <>
-                    <div
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] transition-opacity animate-[fade-in_0.2s_ease-out]"
-                        onClick={() => setActiveChat(null)}
-                    ></div>
-
-                    <div className="fixed top-0 right-0 h-full w-full sm:w-[400px] bg-neutral-950 border-l border-white/10 z-[70] flex flex-col shadow-2xl animate-[slide-in-right_0.3s_ease-out]">
-
-                        {/* Chat Header */}
-                        <div className="p-4 border-b border-white/10 bg-neutral-900 flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-lg">
-                                    {activeChat.seller.charAt(0)}
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-white leading-tight">{activeChat.seller}</h3>
-                                    <p className="text-xs text-primary font-medium">Re: {activeChat.title}</p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => setActiveChat(null)}
-                                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors"
-                            >
-                                <X size={18} />
-                            </button>
-                        </div>
-
-                        {/* Item Quick View */}
-                        <div className="p-3 bg-neutral-900/50 border-b border-white/5 flex gap-3 items-center">
-                            <img src={activeChat.image} alt={activeChat.title} className="w-12 h-12 rounded object-cover border border-white/10" />
-                            <div className="flex-1 overflow-hidden">
-                                <p className="text-sm font-medium text-gray-200 truncate">{activeChat.title}</p>
-                                <p className="text-xs text-gray-400 font-bold">₹{activeChat.price}</p>
-                            </div>
-                        </div>
-
-                        {/* Messages Area */}
-                        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')]">
-                            {chatMessages.map(msg => (
-                                <div key={msg.id} className={`flex max-w-[80%] flex-col ${msg.sender === 'me' ? 'self-end items-end' : 'self-start items-start'}`}>
-                                    <div className={`px-4 py-2 rounded-2xl text-sm shadow-md ${msg.sender === 'me'
-                                        ? 'bg-primary text-black rounded-tr-sm'
-                                        : 'bg-neutral-800 border border-white/10 text-gray-100 rounded-tl-sm'
-                                        }`}>
-                                        {msg.text}
-                                    </div>
-                                    <span className="text-[10px] text-gray-500 mt-1 px-1">{msg.time}</span>
-                                </div>
-                            ))}
-                            <div ref={messagesEndRef} />
-                        </div>
-
-                        {/* Input Area */}
-                        <form onSubmit={sendMessage} className="p-4 bg-neutral-900 border-t border-white/10">
-                            <div className="relative flex items-center">
-                                <input
-                                    type="text"
-                                    value={messageInput}
-                                    onChange={(e) => setMessageInput(e.target.value)}
-                                    placeholder="Type a message..."
-                                    className="w-full bg-black border border-white/20 rounded-full py-3 pl-4 pr-12 text-white text-sm focus:outline-none focus:border-primary/60 transition-colors"
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={!messageInput.trim()}
-                                    className="absolute right-2 w-8 h-8 rounded-full bg-primary flex items-center justify-center text-black disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-400 transition-colors"
-                                >
-                                    <Send size={14} className="ml-0.5" />
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </>, document.body
-            )}
 
             {/* Create Listing Modal Overlay */}
             {isCreateModalOpen && createPortal(
@@ -457,17 +408,13 @@ const Marketplace = () => {
                                 </div>
                             </div>
 
-                            {/* Image URL */}
+                            {/* Image Upload */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1.5">Image URL (Optional)</label>
-                                <input
-                                    type="url"
-                                    value={newItem.image}
-                                    onChange={(e) => setNewItem({ ...newItem, image: e.target.value })}
-                                    placeholder="https://example.com/image.jpg"
-                                    className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Item Image (Required)</label>
+                                <ImageUpload
+                                    folder="listings"
+                                    onUpload={(url) => setNewItem({ ...newItem, image: url })}
                                 />
-                                <p className="text-xs text-gray-500 mt-2">Leave blank to use a default placeholder image.</p>
                             </div>
 
                             {/* Actions */}

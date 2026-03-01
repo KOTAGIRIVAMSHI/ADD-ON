@@ -23,8 +23,7 @@ export const useFirestore = (collectionName, queryConstraints = []) => {
     useEffect(() => {
         let q = query(
             collection(db, collectionName),
-            ...queryConstraints,
-            orderBy("createdAt", "desc")
+            ...queryConstraints
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {

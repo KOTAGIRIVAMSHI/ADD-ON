@@ -6,6 +6,7 @@ import StudyMaterials from './pages/StudyMaterials';
 import Events from './pages/Events';
 import RideSharing from './pages/RideSharing';
 import Profile from './pages/Profile';
+import Messages from './pages/Messages';
 import { AuthProvider } from './context/AuthContext';
 import AuthModal from './components/AuthModal';
 
@@ -20,6 +21,7 @@ function App() {
           <Route path="/events" element={<Events />} />
           <Route path="/ride-sharing" element={<RideSharing />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/messages" element={<Messages />} />
         </Routes>
       </Layout>
       <AuthModal />

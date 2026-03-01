@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpen, ShoppingBag, Menu, X, LibraryBig, Calendar, Car, ChevronDown, User, LogOut, Settings } from 'lucide-react';
+import { BookOpen, ShoppingBag, Menu, X, LibraryBig, Calendar, Car, ChevronDown, User, LogOut, Settings, MessageSquare, Plus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
@@ -22,6 +22,7 @@ const Navbar = () => {
     const navLinks = [
         { name: 'Home', path: '/' },
         { name: 'Marketplace', path: '/marketplace', icon: <ShoppingBag size={18} /> },
+        { name: 'Messages', path: '/messages', icon: <MessageSquare size={18} /> },
         { name: 'Study Materials', path: '/study-materials', icon: <BookOpen size={18} /> }
     ];
 
@@ -88,46 +89,59 @@ const Navbar = () => {
                         </div>
                     </div>
 
-                    {user ? (
-                        <div
-                            className="relative group py-2 z-50"
-                            onMouseEnter={() => setProfileOpen(true)}
-                            onMouseLeave={() => setProfileOpen(false)}
-                        >
-                            <button className="flex items-center gap-3 pl-4 border-l border-white/10">
-                                <img src={user.avatar} alt={user.name} className="w-9 h-9 rounded-full border border-primary/30 shadow-lg hover:border-primary transition-all" />
-                                <ChevronDown size={14} className={`text-gray-500 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
-                            </button>
+                    <div className="flex items-center gap-6">
+                        {user ? (
+                            <>
+                                <Link
+                                    to="/marketplace"
+                                    state={{ openCreateModal: true }}
+                                    className="hidden lg:flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-black font-bold text-sm shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+                                >
+                                    <Plus size={18} />
+                                    Sell
+                                </Link>
 
-                            <div className={`absolute top-full right-0 pt-2 transition-all duration-200 ${profileOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible translate-y-2'}`}>
-                                <div className="bg-neutral-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden w-56 flex flex-col p-2">
-                                    <div className="px-4 py-3 border-b border-white/5 mb-1">
-                                        <p className="text-sm font-bold text-white truncate">{user.name}</p>
-                                        <p className="text-[10px] text-primary uppercase font-bold tracking-wider mt-0.5">{user.branch} • {user.year}</p>
+                                <div
+                                    className="relative group py-2 z-50"
+                                    onMouseEnter={() => setProfileOpen(true)}
+                                    onMouseLeave={() => setProfileOpen(false)}
+                                >
+                                    <button className="flex items-center gap-3 pl-4 border-l border-white/10">
+                                        <img src={user.avatar} alt={user.name} className="w-9 h-9 rounded-full border border-primary/30 shadow-lg hover:border-primary transition-all" />
+                                        <ChevronDown size={14} className={`text-gray-500 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    <div className={`absolute top-full right-0 pt-2 transition-all duration-200 ${profileOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible translate-y-2'}`}>
+                                        <div className="bg-neutral-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden w-56 flex flex-col p-2">
+                                            <div className="px-4 py-3 border-b border-white/5 mb-1">
+                                                <p className="text-sm font-bold text-white truncate">{user.name}</p>
+                                                <p className="text-[10px] text-primary uppercase font-bold tracking-wider mt-0.5">{user.branch} • {user.year}</p>
+                                            </div>
+                                            <Link to="/profile" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
+                                                <User size={16} className="text-gray-500" /> My Profile
+                                            </Link>
+                                            <button className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors w-full text-left">
+                                                <Settings size={16} className="text-gray-500" /> Settings
+                                            </button>
+                                            <button
+                                                onClick={logout}
+                                                className="flex items-center gap-3 px-4 py-2.5 text-sm text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors w-full text-left"
+                                            >
+                                                <LogOut size={16} /> Sign Out
+                                            </button>
+                                        </div>
                                     </div>
-                                    <Link to="/profile" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
-                                        <User size={16} className="text-gray-500" /> My Profile
-                                    </Link>
-                                    <button className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors w-full text-left">
-                                        <Settings size={16} className="text-gray-500" /> Settings
-                                    </button>
-                                    <button
-                                        onClick={logout}
-                                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors w-full text-left"
-                                    >
-                                        <LogOut size={16} /> Sign Out
-                                    </button>
                                 </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <button
-                            className="btn-primary"
-                            onClick={() => setIsAuthModalOpen(true)}
-                        >
-                            Sign In
-                        </button>
-                    )}
+                            </>
+                        ) : (
+                            <button
+                                className="btn-primary"
+                                onClick={() => setIsAuthModalOpen(true)}
+                            >
+                                Sign In
+                            </button>
+                        )}
+                    </div>
                 </nav>
 
                 {/* Mobile Toggle */}
@@ -189,6 +203,14 @@ const Navbar = () => {
                                     <p className="text-[10px] text-primary uppercase font-bold">{user.branch} • {user.year}</p>
                                 </div>
                             </div>
+                            <Link
+                                to="/marketplace"
+                                state={{ openCreateModal: true }}
+                                className="flex items-center gap-3 p-3 rounded-xl font-medium text-primary bg-primary/10 border border-primary/20 mb-2"
+                                onClick={() => setMobileMenuOpen(false)}
+                            >
+                                <Plus size={18} /> Post an Item
+                            </Link>
                             <Link to="/profile" className="flex items-center gap-3 p-3 rounded-xl font-medium text-gray-300 hover:bg-white/5" onClick={() => setMobileMenuOpen(false)}>
                                 <User size={18} /> My Profile
                             </Link>

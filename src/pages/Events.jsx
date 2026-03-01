@@ -1,69 +1,65 @@
 import React, { useState } from 'react';
-import { Calendar, MapPin, Clock, Users, Plus, Filter, Search, ChevronRight, Tag } from 'lucide-react';
-
-const DUMMY_EVENTS = [
-    {
-        id: 1,
-        title: "Hacktoberfest 2024 Launch",
-        category: "Tech",
-        date: "Oct 15, 2024",
-        time: "5:00 PM - 8:00 PM",
-        location: "Main Auditorium",
-        organizer: "GDSC JNTUH",
-        attendees: 124,
-        image: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&q=80&w=800&h=400",
-        description: "Join us for the kickoff of Hacktoberfest! Learn about open source, make your first pull request, and earn exclusive swag."
-    },
-    {
-        id: 2,
-        title: "Inter-Branch Volleyball Finals",
-        category: "Sports",
-        date: "Oct 18, 2024",
-        time: "3:30 PM",
-        location: "Indoor Stadium",
-        organizer: "Sports Council",
-        attendees: 350,
-        image: "https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?auto=format&fit=crop&q=80&w=800&h=400",
-        description: "The highly anticipated finals between CSE and Mechanical. Come show your support!"
-    },
-    {
-        id: 3,
-        title: "Robotics Workshop: Arduino Basics",
-        category: "Workshop",
-        date: "Oct 20, 2024",
-        time: "10:00 AM - 1:00 PM",
-        location: "ECE Lab 2",
-        organizer: "Robotics Club",
-        attendees: 45,
-        image: "https://images.unsplash.com/photo-1555661530-68c8e98db4e6?auto=format&fit=crop&q=80&w=800&h=400",
-        description: "A hands-on workshop covering the fundamentals of Arduino programming and circuit design."
-    },
-    {
-        id: 4,
-        title: "Annual Cultural Fest Needs Volunteers",
-        category: "Community",
-        date: "Nov 01, 2024",
-        time: "All Day",
-        location: "Campus Grounds",
-        organizer: "Student Union",
-        attendees: 80,
-        image: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=800&h=400",
-        description: "We're looking for enthusiastic volunteers to help organize and manage the upcoming cultural fest."
-    }
-];
+import { createPortal } from 'react-dom';
+import { Calendar, MapPin, Clock, Users, Plus, Filter, Search, ChevronRight, Tag, X, Loader2 } from 'lucide-react';
+import { useFirestore } from '../hooks/useFirestore';
+import { useAuth } from '../context/AuthContext';
+import ImageUpload from '../components/ImageUpload';
 
 const CATEGORIES = ['All', 'Tech', 'Sports', 'Workshop', 'Community'];
 
 const Events = () => {
+    const { user } = useAuth();
+    const { docs: events, loading, addDocument } = useFirestore('events');
     const [searchTerm, setSearchTerm] = useState('');
     const [activeCategory, setActiveCategory] = useState('All');
 
-    const filteredEvents = DUMMY_EVENTS.filter(event => {
+    // Modal State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [newEvent, setNewEvent] = useState({
+        title: '',
+        category: 'Tech',
+        date: '',
+        time: '',
+        location: '',
+        description: '',
+        image: ''
+    });
+
+    const filteredEvents = events.filter(event => {
         const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
             event.organizer.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesCategory = activeCategory === 'All' || event.category === activeCategory;
         return matchesSearch && matchesCategory;
     });
+
+    const handleHostEvent = async (e) => {
+        e.preventDefault();
+        if (!user) {
+            alert("Please sign in to host an event!");
+            return;
+        }
+
+        try {
+            await addDocument({
+                title: newEvent.title,
+                category: newEvent.category,
+                date: newEvent.date,
+                time: newEvent.time,
+                location: newEvent.location,
+                description: newEvent.description,
+                organizer: user.name,
+                organizerId: user.uid,
+                attendees: 1, // Organizer is the first attendee
+                image: newEvent.image || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=800&h=400'
+            });
+
+            setIsModalOpen(false);
+            setNewEvent({ title: '', category: 'Tech', date: '', time: '', location: '', description: '', image: '' });
+        } catch (err) {
+            console.error(err);
+            alert("Failed to post event. Try again.");
+        }
+    };
 
     return (
         <div className="w-full flex-grow flex flex-col py-12 px-6 fade-in container mx-auto max-w-7xl relative overflow-hidden">
@@ -84,7 +80,10 @@ const Events = () => {
 
                 {/* Sidebar Filters */}
                 <aside className="w-full lg:w-72 flex-shrink-0 card-glass p-6 lg:sticky lg:top-24">
-                    <button className="btn-primary w-full flex items-center justify-center gap-2 text-sm mb-8">
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="btn-primary w-full flex items-center justify-center gap-2 text-sm mb-8"
+                    >
                         <Plus size={18} />
                         Host an Event
                     </button>
@@ -100,8 +99,8 @@ const Events = () => {
                                 key={category}
                                 onClick={() => setActiveCategory(category)}
                                 className={`text-left px-4 py-3 rounded-xl transition-all font-medium flex items-center justify-between group ${activeCategory === category
-                                        ? 'bg-primary/20 text-primary border border-primary/30 shadow-inner'
-                                        : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                                    ? 'bg-primary/20 text-primary border border-primary/30 shadow-inner'
+                                    : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
                                     }`}
                             >
                                 <span className="flex items-center gap-3">
@@ -135,79 +134,192 @@ const Events = () => {
                     </div>
 
                     {/* Events List */}
-                    <div className="flex flex-col gap-6">
-                        {filteredEvents.map(event => (
-                            <div key={event.id} className="card-glass overflow-hidden group hover:border-primary/30 hover:-translate-y-1 transition-all duration-300 flex flex-col md:flex-row">
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-24 gap-4">
+                            <Loader2 size={48} className="text-primary animate-spin" />
+                            <p className="text-gray-400 font-medium">Fetching campus events...</p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-6">
+                            {filteredEvents.map(event => (
+                                <div key={event.id} className="card-glass overflow-hidden group hover:border-primary/30 hover:-translate-y-1 transition-all duration-300 flex flex-col md:flex-row">
 
-                                {/* Image Section */}
-                                <div className="md:w-64 h-48 md:h-auto relative overflow-hidden flex-shrink-0 bg-neutral-900">
-                                    <div className="absolute inset-0 bg-black/40 group-hover:bg-transparent transition-colors z-10"></div>
-                                    <img src={event.image} alt={event.title} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700" />
+                                    {/* Image Section */}
+                                    <div className="md:w-64 h-48 md:h-auto relative overflow-hidden flex-shrink-0 bg-neutral-900">
+                                        <div className="absolute inset-0 bg-black/40 group-hover:bg-transparent transition-colors z-10"></div>
+                                        <img src={event.image} alt={event.title} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700" />
 
-                                    {/* Date Badge */}
-                                    <div className="absolute top-3 left-3 z-20 bg-black/80 backdrop-blur-md rounded-lg p-2 text-center border border-white/10 min-w-[60px]">
-                                        <div className="text-primary text-xs font-bold uppercase">{event.date.split(' ')[0]}</div>
-                                        <div className="text-white text-xl font-bold">{event.date.split(' ')[1].replace(',', '')}</div>
-                                    </div>
-
-                                    {/* Category Badge */}
-                                    <div className="absolute bottom-3 right-3 z-20">
-                                        <span className="bg-primary text-black text-xs font-bold px-3 py-1 rounded-full shadow-lg">
-                                            {event.category}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Content Section */}
-                                <div className="p-6 flex flex-col flex-1 justify-between">
-                                    <div>
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h3 className="text-xl md:text-2xl font-bold text-white group-hover:text-primary transition-colors leading-tight">{event.title}</h3>
+                                        {/* Date Badge */}
+                                        <div className="absolute top-3 left-3 z-20 bg-black/80 backdrop-blur-md rounded-lg p-2 text-center border border-white/10 min-w-[60px]">
+                                            <div className="text-primary text-xs font-bold uppercase">{event.date.split(' ')[0]}</div>
+                                            <div className="text-white text-xl font-bold">{event.date.split(' ')[1]?.replace(',', '') || event.date}</div>
                                         </div>
-                                        <p className="text-primary font-medium text-sm mb-4">by {event.organizer}</p>
 
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4 mb-4">
-                                            <div className="flex items-center gap-2 text-sm text-gray-400">
-                                                <Clock size={16} className="text-gray-500" />
-                                                <span>{event.time}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 text-sm text-gray-400">
-                                                <MapPin size={16} className="text-gray-500" />
-                                                <span className="truncate">{event.location}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 text-sm text-gray-400 sm:col-span-2">
-                                                <Users size={16} className="text-gray-500" />
-                                                <span>{event.attendees} attending</span>
-                                            </div>
+                                        {/* Category Badge */}
+                                        <div className="absolute bottom-3 right-3 z-20">
+                                            <span className="bg-primary text-black text-xs font-bold px-3 py-1 rounded-full shadow-lg">
+                                                {event.category}
+                                            </span>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between pt-4 border-t border-white/5 mt-2">
-                                        <p className="text-gray-400 text-sm line-clamp-1 flex-1 pr-4">{event.description}</p>
-                                        <button className="btn-secondary whitespace-nowrap px-4 py-2 text-sm group-hover:bg-primary group-hover:text-black group-hover:border-primary transition-all">
-                                            View Details
-                                        </button>
+                                    {/* Content Section */}
+                                    <div className="p-6 flex flex-col flex-1 justify-between">
+                                        <div>
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h3 className="text-xl md:text-2xl font-bold text-white group-hover:text-primary transition-colors leading-tight">{event.title}</h3>
+                                            </div>
+                                            <p className="text-primary font-medium text-sm mb-4">by {event.organizer}</p>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4 mb-4">
+                                                <div className="flex items-center gap-2 text-sm text-gray-400">
+                                                    <Clock size={16} className="text-gray-500" />
+                                                    <span>{event.time}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-sm text-gray-400">
+                                                    <MapPin size={16} className="text-gray-500" />
+                                                    <span className="truncate">{event.location}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-sm text-gray-400 sm:col-span-2">
+                                                    <Users size={16} className="text-gray-500" />
+                                                    <span>{event.attendees} attending</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-4 border-t border-white/5 mt-2">
+                                            <p className="text-gray-400 text-sm line-clamp-1 flex-1 pr-4">{event.description}</p>
+                                            <button className="btn-secondary whitespace-nowrap px-4 py-2 text-sm group-hover:bg-primary group-hover:text-black group-hover:border-primary transition-all">
+                                                View Details
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
 
-                        {filteredEvents.length === 0 && (
-                            <div className="card-glass p-16 text-center rounded-2xl border-dashed border-white/10 flex-grow flex flex-col items-center justify-center">
-                                <Search className="text-gray-600 mb-6" size={56} />
-                                <h3 className="text-2xl text-white font-semibold mb-3">No events found</h3>
-                                <p className="text-gray-400 max-w-md mx-auto mb-8">Try adjusting your search terms or category filter to find what you're looking for.</p>
-                                <button
-                                    className="btn-primary"
-                                    onClick={() => { setSearchTerm(''); setActiveCategory('All'); }}
-                                >
-                                    Clear all filters
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                            {filteredEvents.length === 0 && (
+                                <div className="card-glass p-16 text-center rounded-2xl border-dashed border-white/10 flex-grow flex flex-col items-center justify-center">
+                                    <Search className="text-gray-600 mb-6" size={56} />
+                                    <h3 className="text-2xl text-white font-semibold mb-3">No events found</h3>
+                                    <p className="text-gray-400 max-w-md mx-auto mb-8">Try adjusting your search terms or category filter to find what you're looking for.</p>
+                                    <button
+                                        className="btn-primary"
+                                        onClick={() => { setSearchTerm(''); setActiveCategory('All'); }}
+                                    >
+                                        Clear all filters
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
+
+            {/* Host Event Modal */}
+            {isModalOpen && createPortal(
+                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-[fade-in_0.2s_ease-out]">
+                    <div className="card-glass w-full max-w-xl bg-neutral-900 overflow-hidden flex flex-col shadow-2xl relative animate-[slide-up_0.3s_ease-out]">
+                        <div className="flex justify-between items-center p-6 border-b border-white/10">
+                            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                                <Calendar className="text-primary" /> Host an Event
+                            </h2>
+                            <button
+                                onClick={() => setIsModalOpen(false)}
+                                className="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-2 rounded-full"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleHostEvent} className="p-6 flex flex-col gap-5 overflow-y-auto max-h-[75vh]">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1.5">Event Title <span className="text-primary">*</span></label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={newEvent.title}
+                                    onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
+                                    placeholder="e.g. Hackathon 2024"
+                                    className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary"
+                                />
+                            </div>
+
+                            <div className="flex gap-4">
+                                <div className="flex-1">
+                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Category</label>
+                                    <select
+                                        value={newEvent.category}
+                                        onChange={(e) => setNewEvent({ ...newEvent, category: e.target.value })}
+                                        className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary"
+                                    >
+                                        {CATEGORIES.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Location <span className="text-primary">*</span></label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={newEvent.location}
+                                        onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
+                                        placeholder="e.g. Auditorium"
+                                        className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4">
+                                <div className="flex-1">
+                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Date <span className="text-primary">*</span></label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={newEvent.date}
+                                        onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
+                                        placeholder="e.g. Oct 20"
+                                        className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary"
+                                    />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Time <span className="text-primary">*</span></label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={newEvent.time}
+                                        onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })}
+                                        placeholder="e.g. 5:00 PM"
+                                        className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1.5">Description</label>
+                                <textarea
+                                    value={newEvent.description}
+                                    onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
+                                    rows="3"
+                                    placeholder="Tell us more about the event..."
+                                    className="w-full bg-black/50 border border-white/10 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary resize-none"
+                                ></textarea>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Event Cover Image (Required)</label>
+                                <ImageUpload
+                                    folder="events"
+                                    onUpload={(url) => setNewEvent({ ...newEvent, image: url })}
+                                />
+                            </div>
+
+                            <div className="mt-4 flex gap-3 pt-4 border-t border-white/10">
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 btn-secondary">Cancel</button>
+                                <button type="submit" className="flex-1 btn-primary">Host Event</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>, document.body
+            )}
         </div>
     );
 };
