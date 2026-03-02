@@ -4,8 +4,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, Filter, ShoppingBag, X, Plus, Heart, MessageSquare, Send, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { dbHelpers } from '../utils/dbHelpers';
+import { reviewHelpers } from '../utils/reviewHelpers';
 import ImageUpload from '../components/ImageUpload';
 import EmptyState from '../components/EmptyState';
+import RatingBadge from '../components/RatingBadge';
 
 const CATEGORIES_FILTER = ['All', 'Books', 'Tech & Gear', 'Electronics', 'Furniture', 'Clothing', 'Notes & Papers', 'Calculators', 'Instruments', 'Sports', 'Other', 'AIML', 'Civil', 'Mechanical'];
 
@@ -19,6 +21,7 @@ const Marketplace = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [activeCategory, setActiveCategory] = useState('All');
     const [showSavedOnly, setShowSavedOnly] = useState(false);
+    const [ratingStats, setRatingStats] = useState({});
 
     // Load listings
     useEffect(() => {
@@ -26,6 +29,20 @@ const Marketplace = () => {
             try {
                 const listings = await dbHelpers.getActiveListings();
                 setItems(listings);
+                
+                // Load rating stats for all listings
+                const stats = {};
+                for (const listing of listings) {
+                    try {
+                        const listingStats = await reviewHelpers.getListingRatingStats(listing.id);
+                        if (listingStats) {
+                            stats[listing.id] = listingStats;
+                        }
+                    } catch (err) {
+                        console.error(`Error loading stats for listing ${listing.id}:`, err);
+                    }
+                }
+                setRatingStats(stats);
             } catch (err) {
                 console.error('Error loading listings:', err);
             } finally {
@@ -291,9 +308,14 @@ const Marketplace = () => {
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                             {filteredItems.map(item => {
                                 const isSaved = savedItems.has(item.id);
+                                const itemStats = ratingStats[item.id];
                                 return (
                                     <div key={item.id} className="card-glass overflow-hidden flex flex-col group hover:-translate-y-2 hover:border-primary/30 transition-all duration-300">
-                                        <div className="relative h-48 w-full overflow-hidden">
+                                        {/* Image Section - Clickable */}
+                                        <button
+                                            onClick={() => navigate(`/marketplace/${item.id}`)}
+                                            className="relative h-48 w-full overflow-hidden focus:outline-none"
+                                        >
                                             <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors z-10"></div>
                                             <img src={item.image} alt={item.title} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700" loading="lazy" />
 
@@ -309,15 +331,24 @@ const Marketplace = () => {
 
                                             {/* Save Button */}
                                             <button
-                                                onClick={() => toggleSaveItem(item)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleSaveItem(item);
+                                                }}
                                                 className="absolute top-3 left-3 z-20 w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-black/80 transition-colors"
                                             >
                                                 <Heart size={16} className={`${isSaved ? 'fill-rose-500 text-rose-500' : 'text-white'} transition-colors duration-300`} />
                                             </button>
-                                        </div>
+                                        </button>
 
                                         <div className="p-5 flex flex-col flex-grow bg-neutral-950/50">
-                                            <h3 className="font-semibold text-white text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors">{item.title}</h3>
+                                            {/* Title - Clickable */}
+                                            <button
+                                                onClick={() => navigate(`/marketplace/${item.id}`)}
+                                                className="font-semibold text-white text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors text-left hover:underline"
+                                            >
+                                                {item.title}
+                                            </button>
                                             
                                             {item.description && (
                                                 <p className="text-gray-400 text-sm mb-3 line-clamp-2">{item.description}</p>
@@ -333,6 +364,18 @@ const Marketplace = () => {
                                                     </span>
                                                 )}
                                             </div>
+
+                                            {/* Rating Badge */}
+                                            {itemStats && (
+                                                <div className="mb-3">
+                                                    <button
+                                                        onClick={() => navigate(`/marketplace/${item.id}`)}
+                                                        className="hover:opacity-80 transition-opacity"
+                                                    >
+                                                        <RatingBadge rating={itemStats.avgRating} count={itemStats.totalReviews} size="small" />
+                                                    </button>
+                                                </div>
+                                            )}
 
                                             <div className="flex items-center gap-2 mb-4">
                                                 <img 

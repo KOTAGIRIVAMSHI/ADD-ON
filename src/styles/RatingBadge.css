@@ -1,0 +1,101 @@
+.rating-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #f5f5f5;
+    color: #333;
+    white-space: nowrap;
+}
+
+/* Size Variants */
+.rating-badge-small {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.rating-badge-large {
+    padding: 8px 12px;
+    font-size: 14px;
+}
+
+/* Color Variants */
+.rating-badge.excellent {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #4caf50;
+}
+
+.rating-badge.good {
+    background: #e3f2fd;
+    color: #1565c0;
+    border: 1px solid #2196f3;
+}
+
+.rating-badge.fair {
+    background: #fff3e0;
+    color: #e65100;
+    border: 1px solid #ff9800;
+}
+
+.rating-badge.poor {
+    background: #ffebee;
+    color: #c62828;
+    border: 1px solid #f44336;
+}
+
+.rating-badge.no-rating {
+    background: #f5f5f5;
+    color: #999;
+    border: 1px solid #e0e0e0;
+}
+
+/* Interactive */
+.rating-badge.clickable {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.rating-badge.clickable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.rating-badge.clickable:focus {
+    outline: 2px solid #667eea;
+    outline-offset: 2px;
+}
+
+/* Badge Parts */
+.badge-stars {
+    display: flex;
+    align-items: center;
+    font-weight: 700;
+}
+
+.badge-count {
+    display: none;
+    font-size: 11px;
+    opacity: 0.8;
+}
+
+/* Show count on larger sizes */
+.rating-badge-large .badge-count {
+    display: inline;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .rating-badge-small {
+        padding: 3px 6px;
+        font-size: 11px;
+    }
+
+    .rating-badge-large {
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+}

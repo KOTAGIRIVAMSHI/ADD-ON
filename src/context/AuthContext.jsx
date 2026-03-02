@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { collection, query, where, onSnapshot, getDocs, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { logActivity, logFailedAuth, ACTIVITY_TYPES, ACTIVITY_SEVERITY } from '../utils/activityLogger';
 
 const AuthContext = createContext();
 
@@ -94,25 +95,61 @@ export const AuthProvider = ({ children }) => {
         return () => { unsub1(); unsub2(); };
     }, [user?.uid]);
 
-    const login = (email, password) => {
-        return signInWithEmailAndPassword(auth, email, password);
+    const login = async (email, password) => {
+        try {
+            const result = await signInWithEmailAndPassword(auth, email, password);
+            // Log successful login
+            await logActivity(result.user.uid, ACTIVITY_TYPES.LOGIN, {
+                email: result.user.email,
+                method: 'email'
+            }, ACTIVITY_SEVERITY.INFO);
+            return result;
+        } catch (err) {
+            // Log failed login attempt
+            await logFailedAuth(email, err.code || 'UNKNOWN_ERROR');
+            throw err;
+        }
     };
 
     const register = async (email, password, name) => {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(userCredential.user, {
-            displayName: name
-        });
-        return userCredential;
+        try {
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            await updateProfile(userCredential.user, {
+                displayName: name
+            });
+            // Log signup
+            await logActivity(userCredential.user.uid, ACTIVITY_TYPES.SIGNUP, {
+                email: userCredential.user.email,
+                displayName: name
+            }, ACTIVITY_SEVERITY.INFO);
+            return userCredential;
+        } catch (err) {
+            console.error('Registration error:', err);
+            throw err;
+        }
     };
 
-    const logout = () => {
+    const logout = async () => {
+        if (user?.uid) {
+            await logActivity(user.uid, ACTIVITY_TYPES.LOGOUT, {}, ACTIVITY_SEVERITY.INFO);
+        }
         return signOut(auth);
     };
 
-    const signInWithGoogle = () => {
-        const provider = new GoogleAuthProvider();
-        return signInWithPopup(auth, provider);
+    const signInWithGoogle = async () => {
+        try {
+            const provider = new GoogleAuthProvider();
+            const result = await signInWithPopup(auth, provider);
+            // Log Google login
+            await logActivity(result.user.uid, ACTIVITY_TYPES.LOGIN, {
+                email: result.user.email,
+                method: 'google'
+            }, ACTIVITY_SEVERITY.INFO);
+            return result;
+        } catch (err) {
+            console.error('Google sign-in error:', err);
+            throw err;
+        }
     };
 
     const updateUserProfile = async (updates) => {
@@ -138,6 +175,11 @@ export const AuthProvider = ({ children }) => {
                 createdAt: new Date().toISOString()
             });
         }
+
+        // Log profile update
+        await logActivity(firebaseUser.uid, ACTIVITY_TYPES.PROFILE_UPDATE, {
+            updatedFields: Object.keys(updates)
+        }, ACTIVITY_SEVERITY.INFO);
 
         setUser(prev => ({ ...prev, ...updates }));
     };

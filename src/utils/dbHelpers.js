@@ -15,6 +15,7 @@ import {
     Timestamp,
     increment
 } from 'firebase/firestore';
+import { logActivity, ACTIVITY_TYPES, ACTIVITY_SEVERITY } from './activityLogger';
 
 const COLLECTIONS = {
     USERS: 'users',
@@ -45,21 +46,48 @@ export const dbHelpers = {
 
     // ==================== LISTINGS ====================
     async createListing(data) {
-        return await addDoc(collection(db, COLLECTIONS.LISTINGS), {
+        const docRef = await addDoc(collection(db, COLLECTIONS.LISTINGS), {
             ...data,
             status: 'active',
             views: 0,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
         });
+        
+        // Log activity
+        try {
+            await logActivity(data.sellerId, ACTIVITY_TYPES.LISTING_CREATE, {
+                listingId: docRef.id,
+                category: data.category,
+                title: data.title,
+                price: data.price
+            }, ACTIVITY_SEVERITY.INFO);
+        } catch (error) {
+            console.error('Failed to log listing creation:', error);
+        }
+        
+        return docRef;
     },
 
-    async getListing(listingId) {
+    async getListing(listingId, userId = null) {
         const docRef = doc(db, COLLECTIONS.LISTINGS, listingId);
         const docSnap = await getDoc(docRef);
         if (!docSnap.exists()) return null;
         
         await updateDoc(docRef, { views: increment(1) });
+        
+        // Log activity if userId is provided
+        if (userId) {
+            try {
+                await logActivity(userId, ACTIVITY_TYPES.LISTING_VIEW, {
+                    listingId: listingId,
+                    title: docSnap.data().title
+                }, ACTIVITY_SEVERITY.INFO);
+            } catch (error) {
+                console.error('Failed to log listing view:', error);
+            }
+        }
+        
         return { id: docSnap.id, ...docSnap.data() };
     },
 
@@ -110,16 +138,58 @@ export const dbHelpers = {
         return results.slice(0, pageSize);
     },
 
-    async markListingSold(listingId) {
+    async deleteListing(listingId, userId = null) {
+        await deleteDoc(doc(db, COLLECTIONS.LISTINGS, listingId));
+        
+        // Log activity if userId is provided
+        if (userId) {
+            try {
+                await logActivity(userId, ACTIVITY_TYPES.LISTING_DELETE, {
+                    listingId: listingId
+                }, ACTIVITY_SEVERITY.INFO);
+            } catch (error) {
+                console.error('Failed to log listing deletion:', error);
+            }
+        }
+    },
+
+    async updateListing(listingId, data, userId = null) {
+        const docRef = doc(db, COLLECTIONS.LISTINGS, listingId);
+        await updateDoc(docRef, {
+            ...data,
+            updatedAt: serverTimestamp()
+        });
+        
+        // Log activity if userId is provided
+        if (userId) {
+            try {
+                await logActivity(userId, ACTIVITY_TYPES.LISTING_UPDATE, {
+                    listingId: listingId,
+                    changedFields: Object.keys(data)
+                }, ACTIVITY_SEVERITY.INFO);
+            } catch (error) {
+                console.error('Failed to log listing update:', error);
+            }
+        }
+    },
+
+    async markListingSold(listingId, userId = null) {
         const docRef = doc(db, COLLECTIONS.LISTINGS, listingId);
         await updateDoc(docRef, {
             status: 'sold',
             updatedAt: serverTimestamp()
         });
-    },
-
-    async deleteListing(listingId) {
-        await deleteDoc(doc(db, COLLECTIONS.LISTINGS, listingId));
+        
+        // Log activity if userId is provided
+        if (userId) {
+            try {
+                await logActivity(userId, ACTIVITY_TYPES.LISTING_MARK_SOLD, {
+                    listingId: listingId
+                }, ACTIVITY_SEVERITY.INFO);
+            } catch (error) {
+                console.error('Failed to log mark sold:', error);
+            }
+        }
     },
 
     // ==================== WISHLIST ====================
@@ -135,7 +205,7 @@ export const dbHelpers = {
             throw new Error('Item already in wishlist');
         }
 
-        return await addDoc(collection(db, COLLECTIONS.WISHLIST), {
+        const docRef = await addDoc(collection(db, COLLECTIONS.WISHLIST), {
             userId,
             listingId: listing.id,
             title: listing.title,
@@ -145,6 +215,18 @@ export const dbHelpers = {
             seller: listing.sellerName,
             createdAt: serverTimestamp()
         });
+        
+        // Log activity
+        try {
+            await logActivity(userId, ACTIVITY_TYPES.WISHLIST_ADD, {
+                listingId: listing.id,
+                title: listing.title
+            }, ACTIVITY_SEVERITY.INFO);
+        } catch (error) {
+            console.error('Failed to log wishlist add:', error);
+        }
+        
+        return docRef;
     },
 
     async removeFromWishlist(userId, listingId) {
@@ -156,6 +238,15 @@ export const dbHelpers = {
         const snapshot = await getDocs(q);
         const deletePromises = snapshot.docs.map(d => deleteDoc(d.ref));
         await Promise.all(deletePromises);
+        
+        // Log activity
+        try {
+            await logActivity(userId, ACTIVITY_TYPES.WISHLIST_REMOVE, {
+                listingId: listingId
+            }, ACTIVITY_SEVERITY.INFO);
+        } catch (error) {
+            console.error('Failed to log wishlist remove:', error);
+        }
     },
 
     async getUserWishlist(userId) {
@@ -178,7 +269,7 @@ export const dbHelpers = {
 
     // ==================== MATERIALS ====================
     async uploadMaterial(data) {
-        return await addDoc(collection(db, COLLECTIONS.MATERIALS), {
+        const docRef = await addDoc(collection(db, COLLECTIONS.MATERIALS), {
             ...data,
             upvotes: [],
             views: 0,
@@ -186,6 +277,20 @@ export const dbHelpers = {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
         });
+        
+        // Log activity
+        try {
+            await logActivity(data.uploadedBy, ACTIVITY_TYPES.MATERIAL_UPLOAD, {
+                materialId: docRef.id,
+                title: data.title,
+                branch: data.branch,
+                year: data.year
+            }, ACTIVITY_SEVERITY.INFO);
+        } catch (error) {
+            console.error('Failed to log material upload:', error);
+        }
+        
+        return docRef;
     },
 
     async toggleUpvote(materialId, userId, currentUpvotes) {
@@ -233,6 +338,41 @@ export const dbHelpers = {
         });
         
         return results;
+    },
+
+    async updateMaterial(materialId, data, userId = null) {
+        const docRef = doc(db, COLLECTIONS.MATERIALS, materialId);
+        await updateDoc(docRef, {
+            ...data,
+            updatedAt: serverTimestamp()
+        });
+        
+        // Log activity if userId is provided
+        if (userId) {
+            try {
+                await logActivity(userId, ACTIVITY_TYPES.MATERIAL_UPDATE, {
+                    materialId: materialId,
+                    changedFields: Object.keys(data)
+                }, ACTIVITY_SEVERITY.INFO);
+            } catch (error) {
+                console.error('Failed to log material update:', error);
+            }
+        }
+    },
+
+    async deleteMaterial(materialId, userId = null) {
+        await deleteDoc(doc(db, COLLECTIONS.MATERIALS, materialId));
+        
+        // Log activity if userId is provided
+        if (userId) {
+            try {
+                await logActivity(userId, ACTIVITY_TYPES.MATERIAL_DELETE, {
+                    materialId: materialId
+                }, ACTIVITY_SEVERITY.INFO);
+            } catch (error) {
+                console.error('Failed to log material deletion:', error);
+            }
+        }
     },
 
     // ==================== EVENTS ====================
@@ -427,6 +567,18 @@ export const dbHelpers = {
             createdAt: serverTimestamp()
         });
         
+        // Log activity
+        try {
+            await logActivity(buyerId, ACTIVITY_TYPES.CHAT_CREATE, {
+                chatId: docRef.id,
+                itemId: itemId,
+                itemName: itemName,
+                sellerId: sellerId
+            }, ACTIVITY_SEVERITY.INFO);
+        } catch (error) {
+            console.error('Failed to log chat creation:', error);
+        }
+        
         return docRef.id;
     },
 
@@ -445,6 +597,16 @@ export const dbHelpers = {
             lastMessage: text,
             lastMessageAt: serverTimestamp()
         });
+        
+        // Log activity
+        try {
+            await logActivity(senderId, ACTIVITY_TYPES.MESSAGE_SEND, {
+                chatId: chatId,
+                messageLength: text.length
+            }, ACTIVITY_SEVERITY.INFO);
+        } catch (error) {
+            console.error('Failed to log message send:', error);
+        }
     },
 
     async getUserChats(userId) {

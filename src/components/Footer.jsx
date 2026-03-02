@@ -44,18 +44,18 @@ const Footer = () => {
                         <div>
                             <h3 className="text-white font-semibold mb-6 font-heading">Platform</h3>
                             <ul className="flex flex-col gap-4 text-sm text-gray-400">
-                                <li><a href="#" className="hover:text-primary transition-colors">About Us</a></li>
+                                <li><Link to="/about-us" className="hover:text-primary transition-colors">About Us</Link></li>
                                 <li><a href="#" className="hover:text-primary transition-colors">How it Works</a></li>
-                                <li><a href="#" className="hover:text-primary transition-colors">Guidelines</a></li>
-                                <li><a href="#" className="hover:text-primary transition-colors">FAQ</a></li>
+                                <li><Link to="/guidelines" className="hover:text-primary transition-colors">Guidelines</Link></li>
+                                <li><Link to="/faq" className="hover:text-primary transition-colors">FAQ</Link></li>
                             </ul>
                         </div>
                         <div className="col-span-2 md:col-span-1">
                             <h3 className="text-white font-semibold mb-6 font-heading">Legal</h3>
                             <ul className="flex flex-col gap-4 text-sm text-gray-400">
-                                <li><a href="#" className="hover:text-primary transition-colors">Privacy Policy</a></li>
-                                <li><a href="#" className="hover:text-primary transition-colors">Terms of Service</a></li>
-                                <li><a href="#" className="hover:text-primary transition-colors">Contact</a></li>
+                                <li><Link to="/privacy-policy" className="hover:text-primary transition-colors">Privacy Policy</Link></li>
+                                <li><Link to="/terms-of-service" className="hover:text-primary transition-colors">Terms of Service</Link></li>
+                                <li><Link to="/contact" className="hover:text-primary transition-colors">Contact</Link></li>
                             </ul>
                         </div>
                     </div>

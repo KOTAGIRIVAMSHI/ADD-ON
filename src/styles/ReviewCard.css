@@ -1,0 +1,250 @@
+.review-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: box-shadow 0.2s ease;
+}
+
+.review-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.review-card.hidden {
+    display: none;
+}
+
+/* Review Header */
+.review-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+    gap: 12px;
+}
+
+.reviewer-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.reviewer-name {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+.review-date {
+    font-size: 12px;
+    color: #999;
+}
+
+.verified-badge,
+.pending-badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    width: fit-content;
+}
+
+.verified-badge {
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-weight: 600;
+}
+
+.pending-badge {
+    background: #fff3cd;
+    color: #856404;
+    font-weight: 600;
+}
+
+/* Review Content */
+.review-content {
+    margin-bottom: 12px;
+}
+
+.review-title {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+.review-text {
+    margin: 0;
+    font-size: 13px;
+    color: #555;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+/* Messages */
+.error-message,
+.success-message {
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-bottom: 12px;
+}
+
+.error-message {
+    background: #ffebee;
+    color: #c62828;
+}
+
+.success-message {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+/* Review Footer */
+.review-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 12px;
+    gap: 12px;
+}
+
+.helpful-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.helpful-label {
+    font-size: 12px;
+    color: #666;
+    font-weight: 500;
+}
+
+.helpful-btn,
+.unhelpful-btn,
+.delete-btn,
+.approve-btn,
+.reject-btn {
+    padding: 6px 12px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.helpful-btn:hover:not(:disabled),
+.unhelpful-btn:hover:not(:disabled) {
+    border-color: #667eea;
+    color: #667eea;
+}
+
+.helpful-btn.active,
+.unhelpful-btn.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+.helpful-btn:disabled,
+.unhelpful-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.delete-btn {
+    color: #dc3545;
+    border-color: #dc3545;
+}
+
+.delete-btn:hover:not(:disabled) {
+    background: #dc3545;
+    color: white;
+}
+
+.approve-btn {
+    background: #28a745;
+    color: white;
+    border-color: #28a745;
+}
+
+.approve-btn:hover:not(:disabled) {
+    background: #218838;
+    border-color: #218838;
+}
+
+.reject-btn {
+    background: #dc3545;
+    color: white;
+    border-color: #dc3545;
+}
+
+.reject-btn:hover:not(:disabled) {
+    background: #c82333;
+    border-color: #c82333;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .review-header {
+        flex-direction: column;
+    }
+
+    .review-footer {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .helpful-section {
+        width: 100%;
+    }
+
+    .action-buttons {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+
+@media (max-width: 480px) {
+    .review-card {
+        padding: 12px;
+        margin-bottom: 8px;
+    }
+
+    .review-title {
+        font-size: 13px;
+    }
+
+    .review-text {
+        font-size: 12px;
+    }
+
+    .helpful-section {
+        flex-wrap: wrap;
+    }
+
+    .action-buttons {
+        flex-wrap: wrap;
+    }
+
+    .helpful-btn,
+    .unhelpful-btn,
+    .delete-btn,
+    .approve-btn,
+    .reject-btn {
+        font-size: 11px;
+        padding: 5px 10px;
+    }
+}
